@@ -108,6 +108,14 @@ bool readingSentForCurrentSession = false;
 // on-device placeholder here only affects the immediate on-device
 // LED/OLED result, not the record a clinician would actually trust.
 // ------------------------------------------------------------------
+// SECURITY/CORRECTNESS NOTE for whoever implements real ID input (see TODO
+// above): build_patient_json() below concatenates patient_id directly into
+// a JSON string with zero escaping. That's safe today only because
+// patientId is a fixed compile-time constant. The moment this becomes
+// real keypad/serial/BLE input, a patient ID containing a `"` or `\`
+// character will produce malformed JSON (the server will reject it, or
+// worse, silently misparse it) — escape those characters before this
+// becomes a real input path, don't just swap the constant for a variable.
 const char* patientId = "PT-0042";
 int patientAge = 30;
 int patientGender = GENDER_FEMALE; // 0 = Female, 1 = Male (see AnemiaClassifier.h)
@@ -199,7 +207,12 @@ void showResultScreen(int riskLevel, int32_t spo2, int32_t hr, float pi, bool se
   display.setTextColor(SSD1306_WHITE);
   display.setTextSize(1);
   display.setCursor(0, 0);
-  display.println("AERIS - RESULT");
+  // Sync status appended to the header line (not a separate row) — the
+  // screen is only 64px tall and every row below this one is already
+  // occupied (risk label, SpO2, HR/PI), so a 4th text row at y=56 would
+  // visually overlap the HR/PI row's own pixels (which occupy y=50-58).
+  display.print("RESULT ");
+  display.println(sent ? "[OK]" : "[FAIL]");
   display.drawLine(0, 10, 127, 10, SSD1306_WHITE);
 
   display.setTextSize(2);
@@ -221,10 +234,6 @@ void showResultScreen(int riskLevel, int32_t spo2, int32_t hr, float pi, bool se
   display.print("PI: ");
   display.print(pi, 1);
   display.println("%");
-
-  display.setCursor(0, 56);
-  display.setTextSize(1);
-  display.print(sent ? "Synced" : "Sync failed");
 
   display.display();
 }
@@ -534,6 +543,17 @@ void loop() {
   Serial.print("  Risk: "); Serial.println(riskLabel(riskLevel));
 
   // ---- Transmit once per finger session ----
+  // NOTE: if send_reading_to_backend() fails for a reason OTHER than
+  // WiFi being down (e.g. the server is reachable but erroring, or slow),
+  // readingSentForCurrentSession stays false and this retries on every
+  // subsequent ~1s loop iteration with no backoff, for as long as the
+  // finger stays down. 10 retries (~10s) would exhaust the server's own
+  // 10 req/min rate limit for this device_id — turning a transient
+  // server-side issue into a full minute of self-inflicted lockout. Low
+  // likelihood in practice (WiFi-down is the far more common failure
+  // mode and IS fast-failed, see the WiFi.status() check above), but
+  // worth knowing about — a real fix would need an exponential backoff
+  // or a max-retry cap here.
   bool sentThisLoop = false;
   if (!readingSentForCurrentSession) {
     sentThisLoop = send_reading_to_backend(spo2Value, heartRateValue, piValue, riskLevel, (float)lastRed, (float)lastIR);
