@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AERIS — Non-Invasive Anemia Risk Screening</title>
+  <meta name="description"
+    content="AERIS is a prototype demonstration of non-invasive fingertip optical screening for early anemia and nutritional risk estimation." />
+  
+  <!-- GOOGLE FONTS: Cormorant Garamond (Editorial Serif), Inter (Sans), JetBrains Mono (Technical) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,400&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap"
+    rel="stylesheet" />
+  
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+
+<body>
+
+  <!-- ATMOSPHERIC OVERLAYS -->
+  <div class="grain" aria-hidden="true"></div>
+  <div class="vignette" aria-hidden="true"></div>
+
+  <!-- MINIMAL UNDERSTATED NAVIGATION -->
+  <nav id="nav" class="nav">
+    <a href="#problem" class="nav__logo">
+      <span class="nav__status-dot"></span>
+      AERIS
+    </a>
+    <div class="nav__links" id="nav-links">
+      <a href="#problem" class="nav__link" data-nav-target="0.0">STORY</a>
+      <a href="#measurement" class="nav__link" data-nav-target="0.50">HOW IT WORKS</a>
+      <a href="/dashboard.html" class="nav__link nav__link--cta">SCREEN →</a>
+    </div>
+    <button class="nav__toggle" id="nav-toggle" aria-label="Toggle navigation menu" aria-expanded="false">
+      <span></span><span></span>
+    </button>
+  </nav>
+  <div class="nav__overlay" id="nav-overlay"></div>
+
+  <!-- ============================================================ -->
+  <!-- UNIFIED MASTER NARRATIVE RUNWAY (1000vh) -->
+  <!-- ============================================================ -->
+  <main id="master-experience">
+    
+    <div class="master-pin" id="master-pin">
+      
+      <!-- 2D MASTER SCENE CANVAS ENGINE -->
+      <canvas id="master-canvas" aria-hidden="true"></canvas>
+
+      <!-- MASTER NARRATIVE OVERLAY STAGES -->
+      <div class="master-overlays">
+
+        <!-- SECTION 01 — THE PROBLEM (P: 0.00 - 0.15) -->
+        <div class="overlay-stage stage-problem" id="stage-problem">
+          <div class="hero__tag">
+            <span class="hud-label">AERIS // EARLY RISK ESTIMATION PLATFORM</span>
+            <span class="hud-sys">PROTOTYPE DEMONSTRATION</span>
+          </div>
+
+          <h1 class="hero__headline">
+            <span class="hero__line">ANEMIA</span>
+            <span class="hero__line">IS OFTEN</span>
+            <span class="hero__line hero__line--accent">INVISIBLE.</span>
+          </h1>
+
+          <div class="hero__footer-row">
+            <p class="hero__desc">
+              Iron and nutritional risk can remain unnoticed until symptoms become more apparent.
+            </p>
+            <div class="hero__scroll">
+              <span class="hud-mono">SCROLL TO EXPLORE ↓</span>
+              <svg width="14" height="20" viewBox="0 0 16 24" fill="none" aria-hidden="true">
+                <path d="M8 0V22M8 22L1 15M8 22L15 15" stroke="currentColor" stroke-width="1.2" />
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <!-- SECTION 02 — ENTER THE BLOODSTREAM (P: 0.22 - 0.38) -->
+        <div class="overlay-stage stage-bloodstream" id="stage-bloodstream">
+          <span class="eyebrow eyebrow--light">THE BLOOD ALREADY</span>
+          <h2 class="rbc__headline">TELLS A STORY.</h2>
+        </div>
+
+        <!-- SECTION 03 — NON-INVASIVE MEASUREMENT (P: 0.48 - 0.64) -->
+        <div class="overlay-stage stage-measurement" id="stage-measurement">
+          <div class="measurement__header">
+            <h2 class="meas-line">ONE FINGER.</h2>
+            <h2 class="meas-line">NO NEEDLE.</h2>
+            <h2 class="meas-line meas-line--accent">15–30 SECONDS.</h2>
+            <p class="meas-desc">
+              Dual-wavelength optical sensing observes changes in microvascular blood volume through the fingertip.
+            </p>
+          </div>
+
+          <div class="measurement__flow">
+            <div class="meas-step" data-step="1">
+              <span class="meas-num">01</span>
+              <h4>FINGERTIP</h4>
+              <p>User rests a single fingertip on the optical aperture.</p>
+            </div>
+            <div class="meas-step" data-step="2">
+              <span class="meas-num">02</span>
+              <h4>OPTICAL SENSING</h4>
+              <p>Dual-wavelength light captures absorption variations.</p>
+            </div>
+            <div class="meas-step" data-step="3">
+              <span class="meas-num">03</span>
+              <h4>FEATURE EXTRACTION</h4>
+              <p>Signal features are extracted from microvascular changes.</p>
+            </div>
+            <div class="meas-step" data-step="4">
+              <span class="meas-num">04</span>
+              <h4>ESTIMATED RISK</h4>
+              <p>Algorithm computes a non-invasive screening risk level.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- SECTION 04 — SIGNAL TO INSIGHT (P: 0.66 - 0.82) -->
+        <div class="overlay-stage stage-insight" id="stage-insight">
+          <div class="insight__header">
+            <span class="eyebrow">FROM SIGNAL TO INSIGHT</span>
+            <h2 class="insight__headline">CONCEPTUAL PIPELINE</h2>
+          </div>
+
+          <div class="insight__pipeline">
+            <div class="pipe-node" id="pipe-raw">
+              <span class="pipe-tag">01 // ACQUISITION</span>
+              <h3>RAW OPTICAL SIGNAL</h3>
+              <p>Light intensity variations measured at 660nm and 880nm wavelengths.</p>
+            </div>
+            <div class="pipe-arrow" aria-hidden="true">→</div>
+            <div class="pipe-node" id="pipe-proc">
+              <span class="pipe-tag">02 // PROCESSING</span>
+              <h3>SIGNAL FILTERING</h3>
+              <p>Bandpass noise cancellation removes motion artifacts.</p>
+            </div>
+            <div class="pipe-arrow" aria-hidden="true">→</div>
+            <div class="pipe-node" id="pipe-feat">
+              <span class="pipe-tag">03 // EXTRACTION</span>
+              <h3>FEATURE ENGINE</h3>
+              <p>Extracts absorbance ratios, AC/DC amplitudes and interval metrics.</p>
+            </div>
+            <div class="pipe-arrow" aria-hidden="true">→</div>
+            <div class="pipe-node" id="pipe-risk">
+              <span class="pipe-tag">04 // OUTPUT</span>
+              <h3>RISK CLASSIFICATION</h3>
+              <p>Estimates screening risk band: Low, Medium, or High.</p>
+            </div>
+          </div>
+
+          <p class="insight__disclaimer">
+            Conceptual pipeline — representative demonstration data, not a diagnostic record.
+          </p>
+        </div>
+
+        <!-- SECTION 05 — ACCESSIBILITY / FINAL CTA (P: 0.86 - 1.00) -->
+        <div class="overlay-stage stage-accessibility" id="stage-accessibility">
+          <span class="eyebrow">SCREENING SHOULD BE</span>
+          <h2 class="final__headline">
+            <span class="accent">ACCESSIBLE.</span>
+          </h2>
+          <div class="final__facts">
+            <span>One finger.</span>
+            <span>No needle.</span>
+            <span>15–30 seconds.</span>
+          </div>
+          <p class="final__note">
+            AERIS is a prototype screening demonstration, not a diagnostic record.
+          </p>
+          <div class="final__actions">
+            <a href="/dashboard.html" class="btn btn--primary">OPEN SCREENING CONSOLE →</a>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+  </main>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+
+</html>

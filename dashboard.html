@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AERIS — Screening Console</title>
+  <meta name="description"
+    content="AERIS clinical operations console for non-invasive anemia risk screening prototype." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600&display=swap"
+    rel="stylesheet" />
+  <link rel="stylesheet" href="/src/dashboard-style.css" />
+</head>
+
+<body class="dash-body">
+
+  <!-- HEADER -->
+  <header class="dash-header">
+    <div class="dash-header__left">
+      <a href="/index.html" class="dash-back">← AERIS</a>
+      <div class="dash-brand">
+        <span class="dash-brand__name">AERIS SCREENING CONSOLE</span>
+        <span class="dash-brand__sub">Demo data — not a diagnostic record</span>
+      </div>
+    </div>
+    
+    <nav class="dash-nav" id="dash-nav" aria-label="Console views">
+      <button class="dash-nav__link is-active" data-view="overview">Overview</button>
+      <button class="dash-nav__link" data-view="screenings">Screenings</button>
+      <button class="dash-nav__link" data-view="patient">Patient</button>
+      <button class="dash-nav__link" data-view="device">Device</button>
+    </nav>
+    
+    <div class="dash-header__right">
+      <span class="dash-pill" id="dash-status-pill"><span class="dash-dot dash-dot--active"></span>ONLINE</span>
+      <span class="dash-pill" id="dash-queue-pill">QUEUED: <strong id="header-queue-count">0</strong></span>
+    </div>
+  </header>
+
+  <!-- MAIN CONTAINER -->
+  <main class="dash-main">
+
+    <!-- ============================================================ -->
+    <!-- VIEW 1: OVERVIEW -->
+    <!-- ============================================================ -->
+    <div id="view-overview" class="dash-view is-active">
+      
+      <!-- SUMMARY METRIC STRIP -->
+      <div class="dash-metric-strip">
+        <div class="dash-metric">
+          <span class="dash-metric__label">SCREENINGS TODAY</span>
+          <span class="dash-metric__val" id="m-total">127</span>
+        </div>
+        <div class="dash-metric dash-metric--healthy">
+          <span class="dash-metric__label">HEALTHY (CODE 0)</span>
+          <span class="dash-metric__val" id="m-healthy">84</span>
+        </div>
+        <div class="dash-metric dash-metric--mild">
+          <span class="dash-metric__label">MILD / MODERATE (CODE 1)</span>
+          <span class="dash-metric__val" id="m-mild">31</span>
+        </div>
+        <div class="dash-metric dash-metric--severe">
+          <span class="dash-metric__label">SEVERE (CODE 2)</span>
+          <span class="dash-metric__val" id="m-severe">12</span>
+        </div>
+      </div>
+
+      <!-- TOP PRIORITY ROW: NEW SCREENING & ACTIVE RESULT SIDE-BY-SIDE -->
+      <div class="dash-hero-grid">
+        
+        <!-- NEW SCREENING INPUT PANEL -->
+        <div class="dash-panel dash-panel--hero-input">
+          <div class="dash-panel__header">
+            <span class="dash-panel__title">NEW SCREENING INPUT</span>
+            <span class="dash-panel__sub">Demographic parameters for ML risk model</span>
+          </div>
+          <form id="screening-input-form" class="dash-form">
+            <div class="form-row">
+              <div class="form-group">
+                <label for="input-patient-id" class="form-label">PATIENT ID</label>
+                <input type="text" id="input-patient-id" class="form-input" value="PT-0042" required />
+              </div>
+              <div class="form-group">
+                <label for="input-age" class="form-label">PATIENT AGE</label>
+                <input type="number" id="input-age" class="form-input" value="32" min="1" max="110" required />
+              </div>
+            </div>
+
+            <div class="form-group" style="margin-top: 14px;">
+              <label class="form-label">GENDER</label>
+              <div class="gender-toggle-group">
+                <button type="button" class="gender-btn" data-gender="1">Male</button>
+                <button type="button" class="gender-btn is-active" data-gender="0">Female</button>
+                <input type="hidden" id="input-gender" value="0" />
+              </div>
+            </div>
+
+            <button type="submit" class="btn-run-screening">RUN OPTICAL SCREENING →</button>
+          </form>
+
+          <div class="dash-input-note">
+            <span>ML Signature: <code>predictAnemiaRisk(red, ir, age, genderMale)</code></span>
+          </div>
+        </div>
+
+        <!-- ACTIVE SCREENING RESULT PANEL -->
+        <div class="dash-panel dash-panel--hero-result">
+          <div class="dash-panel__header">
+            <span class="dash-panel__title">ACTIVE SCREENING RESULT</span>
+            <span class="dash-badge" id="active-risk-badge">CODE 1 // MILD / MODERATE</span>
+          </div>
+
+          <!-- RESULT BANNER -->
+          <div class="dash-result-banner" id="active-result-banner">
+            <div>
+              <span class="result-category" id="active-result-label">MILD / MODERATE ANEMIA</span>
+              <div class="result-code-tag">Classification Output: <strong id="active-result-code">1</strong></div>
+            </div>
+            <div class="result-signal-wrap">
+              <span class="dash-id-label">SIGNAL QUALITY</span>
+              <div class="dash-signal-pill" id="active-signal-quality">● GOOD</div>
+            </div>
+          </div>
+
+          <!-- NEXT ACTION REFERRAL INDICATOR -->
+          <div class="dash-action-box" id="active-action-box">
+            <span class="action-label">RECOMMENDED NEXT ACTION:</span>
+            <h4 class="action-text" id="active-action-text">→ Refer for confirmatory blood test</h4>
+          </div>
+
+          <!-- DEMOGRAPHICS & OPTICAL SENSOR SIGNAL DATA -->
+          <div class="dash-id-row">
+            <div>
+              <span class="dash-id-label">PATIENT &amp; DEMOGRAPHICS</span>
+              <div class="dash-id-val" id="active-patient-demo">PT-0042 · 32 yrs · Female</div>
+            </div>
+            <div style="text-align: right;">
+              <span class="dash-id-label">LAST UPDATED</span>
+              <div class="dash-id-val" id="active-timestamp">—</div>
+            </div>
+          </div>
+
+          <div class="dash-metrics-grid">
+            <div class="dash-mini-metric">
+              <span class="dash-mini-metric__label">SpO₂</span>
+              <span class="dash-mini-metric__val" id="active-spo2">96 <small>%</small></span>
+              <span class="dash-mini-metric__note">Optical estimate</span>
+            </div>
+            <div class="dash-mini-metric">
+              <span class="dash-mini-metric__label">HRV</span>
+              <span class="dash-mini-metric__val" id="active-hrv">42 <small>ms</small></span>
+              <span class="dash-mini-metric__note">Inter-beat interval</span>
+            </div>
+            <div class="dash-mini-metric dash-mini-metric--accent">
+              <span class="dash-mini-metric__label">PERFUSION INDEX</span>
+              <span class="dash-mini-metric__val" id="active-pi">1.8 <small>%</small></span>
+              <span class="dash-mini-metric__note">Pulsatile ratio</span>
+            </div>
+          </div>
+
+          <!-- WHY THIS RESULT EXPLANATION -->
+          <div class="dash-explanation-box">
+            <span class="exp-title">WHY THIS RESULT?</span>
+            <p class="exp-text" id="active-explanation">Classification generated from optical sensor absorbance input and patient demographic parameters (Age, Gender).</p>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- BOTTOM ROW: RECENT ACTIVITY TABLE & SYSTEM / OLED MIRROR -->
+      <div class="dash-bottom-grid">
+        
+        <!-- RECENT ACTIVITY LOG TABLE -->
+        <div class="dash-panel dash-panel--table">
+          <div class="dash-panel__header">
+            <span class="dash-panel__title">RECENT SCREENINGS LOG</span>
+            <span class="dash-panel__sub">Click any row to view complete details</span>
+          </div>
+          <div class="dash-table-wrap">
+            <table class="dash-table">
+              <thead>
+                <tr>
+                  <th>Screening ID</th>
+                  <th>Patient ID</th>
+                  <th>Age / Gender</th>
+                  <th>Result</th>
+                  <th>Signal Quality</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="overview-recent-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- RIGHT SIDEBAR: OLED MIRROR & COMPACT DEVICE STATUS -->
+        <div class="dash-col">
+          <!-- OLED MIRROR DISPLAY -->
+          <div class="dash-panel dash-panel--oled">
+            <div class="dash-panel__header">
+              <span class="dash-panel__title">PHYSICAL OLED MIRROR — SSD1306</span>
+              <span class="dash-panel__sub">128×64 Display</span>
+            </div>
+            <div class="dash-oled-bezel">
+              <div class="dash-oled-screen" id="oled-screen"></div>
+            </div>
+          </div>
+
+          <!-- COMPACT DEVICE STATUS -->
+          <div class="dash-panel">
+            <div class="dash-panel__header">
+              <span class="dash-panel__title">DEVICE STATUS</span>
+              <a href="#device" class="dash-link-btn" id="btn-goto-device">Full Status →</a>
+            </div>
+            <div class="dash-compact-device-grid" id="compact-device-status"></div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- VIEW 2: DEDICATED SCREENINGS HISTORY -->
+    <!-- ============================================================ -->
+    <div id="view-screenings" class="dash-view">
+      <div class="dash-section-header">
+        <h1 class="dash-h1">Screening History</h1>
+        <p class="dash-subhead">Complete audit log of all optical risk screenings recorded by AERIS. Click any record to inspect.</p>
+      </div>
+
+      <div class="dash-panel dash-panel--table">
+        <div class="dash-panel__header">
+          <span class="dash-panel__title">ALL SCREENING RECORDS</span>
+          <span class="dash-panel__sub" id="screenings-count-label">Showing 8 records</span>
+        </div>
+        <div class="dash-table-wrap">
+          <table class="dash-table dash-table--full">
+            <thead>
+              <tr>
+                <th>Screening ID</th>
+                <th>Patient ID</th>
+                <th>Age</th>
+                <th>Gender</th>
+                <th>Timestamp</th>
+                <th>Model Code</th>
+                <th>Result</th>
+                <th>Signal Quality</th>
+                <th>Referral Action</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="full-screenings-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- VIEW 3: PATIENT-LEVEL VIEW & LONGITUDINAL TREND -->
+    <!-- ============================================================ -->
+    <div id="view-patient" class="dash-view">
+      <div class="dash-patient-bar">
+        <div class="patient-selector-wrap">
+          <label for="patient-select" class="patient-select-label">SELECT PATIENT:</label>
+          <select id="patient-select" class="patient-select-dropdown">
+            <option value="PT-0042">Patient PT-0042 (Female, 32 yrs)</option>
+            <option value="PT-0089">Patient PT-0089 (Male, 48 yrs)</option>
+            <option value="PT-0104">Patient PT-0104 (Female, 64 yrs)</option>
+            <option value="PT-0036">Patient PT-0036 (Male, 26 yrs)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="dash-hero-grid" style="margin-top: 16px;">
+        <!-- PATIENT SUMMARY CARD -->
+        <div class="dash-panel" id="patient-profile-card">
+          <!-- Rendered dynamically -->
+        </div>
+
+        <!-- PATIENT LONGITUDINAL TREND CHART -->
+        <div class="dash-panel dash-panel--chart">
+          <div class="dash-panel__header">
+            <span class="dash-panel__title">PATIENT LONGITUDINAL TREND</span>
+            <span class="dash-panel__sub" id="patient-chart-sub">SpO₂ · Perfusion Index · HRV history over time</span>
+          </div>
+          <div class="dash-chart-wrap">
+            <canvas id="patient-trend-chart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="dash-panel dash-panel--table" style="margin-top: 18px;">
+        <div class="dash-panel__header">
+          <span class="dash-panel__title">PATIENT SCREENING LOG</span>
+          <span class="dash-panel__sub">Individual screening history</span>
+        </div>
+        <div class="dash-table-wrap">
+          <table class="dash-table">
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>Result</th>
+                <th>SpO₂</th>
+                <th>HRV</th>
+                <th>PI</th>
+                <th>Signal Quality</th>
+              </tr>
+            </thead>
+            <tbody id="patient-history-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- VIEW 4: DEVICE & OFFLINE QUEUE DIAGNOSTICS -->
+    <!-- ============================================================ -->
+    <div id="view-device" class="dash-view">
+      <div class="dash-section-header">
+        <h1 class="dash-h1">Device &amp; System Status</h1>
+        <p class="dash-subhead">Hardware diagnostic layer, ESP32 core status, and offline sync queue management.</p>
+      </div>
+
+      <div class="dash-hero-grid">
+        <!-- SYSTEM STATUS CARDS -->
+        <div class="dash-panel">
+          <div class="dash-panel__header">
+            <span class="dash-panel__title">HARDWARE &amp; SENSOR STATUS</span>
+          </div>
+          <div class="dash-device-list" id="full-device-status-list"></div>
+        </div>
+
+        <!-- OFFLINE QUEUE MANAGEMENT -->
+        <div class="dash-panel">
+          <div class="dash-panel__header">
+            <span class="dash-panel__title">OFFLINE QUEUE &amp; SYNC</span>
+            <span class="dash-badge" id="offline-queue-badge">3 READINGS QUEUED</span>
+          </div>
+          <div class="dash-queue-box">
+            <div class="queue-status-text" id="queue-status-text">
+              OFFLINE QUEUE<br />
+              <strong id="queue-count-display">3 readings waiting to sync</strong>
+            </div>
+            <p class="queue-desc">
+              Designed for community health environments with intermittent connectivity. Readings are stored locally in non-volatile memory until connection is re-established.
+            </p>
+            <div class="queue-actions">
+              <button type="button" class="btn-dash-action" id="btn-toggle-offline">Simulate Offline Mode</button>
+              <button type="button" class="btn-dash-action btn-dash-action--accent" id="btn-sync-queue">Sync Queue Now</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="dash-panel" style="margin-top: 18px;">
+        <div class="dash-panel__header">
+          <span class="dash-panel__title">HARDWARE ARCHITECTURE SPECIFICATION</span>
+        </div>
+        <div class="dash-meta-list" style="padding: 18px;">
+          <div class="dash-meta-row"><span>Optical Emitter</span><strong>MAX30102 Dual Wavelength Array (660nm Red / 880nm IR)</strong></div>
+          <div class="dash-meta-row"><span>Microcontroller Core</span><strong>ESP32 Dual-Core 240MHz (UART / Wi-Fi / BLE)</strong></div>
+          <div class="dash-meta-row"><span>On-Board Display</span><strong>SSD1306 128×64 OLED Screen</strong></div>
+          <div class="dash-meta-row"><span>Firmware Version</span><strong>v1.2.4 (Demographic ML predict ready)</strong></div>
+          <div class="dash-meta-row"><span>Data Security</span><strong>WPA3 Enterprise / AES-128 Local Storage Encryption</strong></div>
+          <div class="dash-meta-row"><span>Transmission Protocol</span><strong>HTTPS / TLS 1.3 JSON Telemetry Bus</strong></div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- SCREENING DETAILS MODAL -->
+  <div class="dash-modal-backdrop" id="screening-modal-backdrop">
+    <div class="dash-modal" id="screening-modal">
+      <div class="dash-modal__header">
+        <span class="dash-modal__title">SCREENING DETAILS — <span id="modal-screening-id">SCR-0000</span></span>
+        <button type="button" class="dash-modal__close" id="modal-close-btn">&times;</button>
+      </div>
+      <div class="dash-modal__body" id="modal-body">
+        <!-- Rendered dynamically -->
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/src/dashboard-main.js"></script>
+</body>
+
+</html>

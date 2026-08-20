@@ -1,18 +1,27 @@
 {
-  "name": "innohack2.0",
+  "name": "aeris",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "AERIS Non-Invasive Anemia Risk Screening Platform",
+  "main": "server.js",
+  "type": "module",
   "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "start": "node server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
   "dependencies": {
+    "chart.js": "^4.4.4",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "gsap": "^3.12.5",
     "sqlite3": "^6.0.1"
+  },
+  "devDependencies": {
+    "vite": "^5.4.8"
   }
 }
