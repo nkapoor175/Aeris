@@ -23,7 +23,7 @@ The ESP32 device captures clinical metrics (SpO2, HRV, Perfusion Index, raw Red/
 
 Aeris classifies anemia/malnutrition risk in two stages:
 
-1. **On-device (fast, first-pass) estimate** — `device_risk_level`. Computed on the ESP32 itself, either by the rule-based Perfusion Index thresholding or the on-device ML model (`HardwareTest/AnemiaClassifier.h/.cpp`). The on-device ML model needs age/gender as inputs, but the hardware has no input mechanism for them yet, so it currently runs with **placeholder demographics (age=30, female)** — see `HardwareTest.ino`. This estimate is always present and is what drives the device's own LEDs/buzzer in real time.
+1. **On-device (fast, first-pass) estimate** — `device_risk_level`. Computed on the ESP32 itself by the on-device ML model (`AnemiaClassifier.h/.cpp`), with a rule-based Perfusion Index fallback if the model ever returns an out-of-range value — see `AerisDevice/AerisDevice.ino` (the real device firmware; see [Which `.ino` do I actually flash?](#which-ino-do-i-actually-flash) above). The on-device ML model needs age/gender as inputs, but the hardware has no input mechanism for them yet, so it currently runs with **placeholder demographics (age=30, female)**. This estimate is always present and is what drives the device's own LEDs/buzzer in real time.
 2. **Server-side (full) estimate** — `server_risk_level`. Computed by this backend using [`anemiaClassifier.js`](anemiaClassifier.js), a faithful Node.js port of the same decision tree (`AnemiaDecisionTree.h`), but fed the reading's **actual raw Red/IR values combined with the patient's real age/gender** (submitted once via `POST /api/patient-context`, see below) instead of the on-device placeholders.
 
 Until a patient's age/gender have been submitted, `server_risk_level` is `null` and `server_risk_status` reads `"awaiting_patient_info"` — the API deliberately does **not** fall back to placeholder-based demographics for this field, since that would silently present a low-confidence estimate as a real one. Once context exists, `server_risk_status` reads `"computed"`.
@@ -43,12 +43,28 @@ Until a patient's age/gender have been submitted, `server_risk_level` is `null` 
 ├── test_pipeline.js      # Self-contained integration & security test suite
 ├── app.log               # Generated request log (metadata only)
 ├── aeris.db              # SQLite Database file
+├── AerisDevice/
+│   ├── AerisDevice.ino    # THE REAL DEVICE FIRMWARE — flash this to the physical ESP32
+│   └── AnemiaClassifier.h/.cpp, AnemiaDecisionTree.h   # copies, required by Arduino's build model
 ├── HardwareTest/
+│   ├── HardwareTest.ino          # Standalone hardware bring-up/diagnostic sketch (no transmission)
 │   ├── AnemiaClassifier.h/.cpp   # Original C++ ML classifier (source of truth for anemiaClassifier.js)
 │   └── AnemiaDecisionTree.h      # Generated decision tree used by AnemiaClassifier.cpp
 └── esp32_client/
-    └── esp32_client.ino  # ESP32 Arduino/C++ firmware reference code
+    └── esp32_client.ino  # Simulated-data reference sketch (see below)
 ```
+
+### Which `.ino` do I actually flash?
+
+There are three ESP32 sketches in this repo and they are **not interchangeable** — each serves a different purpose:
+
+| Sketch | Reads real sensor? | Classifies risk? | Shows OLED/LED/buzzer? | Encrypts + POSTs to backend? | Use it for |
+|---|---|---|---|---|---|
+| **`AerisDevice/AerisDevice.ino`** | ✅ | ✅ (ML + fallback) | ✅ | ✅ | **The actual physical device / live demo.** This is the only sketch that does the full pipeline end-to-end. |
+| `HardwareTest/HardwareTest.ino` | ✅ | ✅ (ML only, no fallback) | ✅ | ❌ | Hardware bring-up/debugging — confirming the sensor, OLED, and LEDs are wired correctly, without needing Wi-Fi or a running backend. |
+| `esp32_client/esp32_client.ino` | ❌ (simulated `random()` values) | ❌ (simple rule-based only) | ❌ | ✅ | Testing the **backend** (`server.js`) end-to-end without any physical hardware attached — useful for whoever's working on the backend/dashboard in parallel. |
+
+If you're prepping for a live demo, `AerisDevice/AerisDevice.ino` is the one that needs to compile and flash successfully. It hasn't been compiled with the real ESP32 toolchain in this environment (no `arduino-cli`/board packages available here) — it's been checked line-by-line (every function call site matches its declaration, braces/parens balanced) but **please do a real compile in the Arduino IDE/PlatformIO before relying on it for a demo.**
 
 ---
 
@@ -163,7 +179,7 @@ Called by the ESP32 device. Requires `device_id` to be in `ALLOWED_DEVICES` and 
 |--------------------|--------|--------------------------------------------------------------|
 | `patient_id`       | string | non-empty                                                   |
 | `spo2`             | number | 0–100                                                        |
-| `hrv`              | number | ≥ 0                                                           |
+| `hrv`              | number | ≥ 0 — **naming note**: what's actually transmitted here is instantaneous heart rate (bpm) from the sensor library's `maxim_heart_rate_and_oxygen_saturation()`, not true heart-rate-variability (beat-to-beat interval variance). True HRV was never implemented; the field name predates this and is kept for schema compatibility rather than silently renamed. |
 | `perfusion_index`  | number | ≥ 0                                                           |
 | `risk_level`       | number | 0, 1, or 2 — the on-device estimate, stored as `device_risk_level` |
 | `red_raw`          | number | ≥ 0 — raw Red optical value from MAX30102                   |
