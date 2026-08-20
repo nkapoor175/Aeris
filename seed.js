@@ -15,9 +15,16 @@
  * All timestamps are saved in ISO 8601 UTC format.
  */
 
-const sqlite3 = require('sqlite3').verbose();
-const path = require('path');
-const { predictAnemiaRisk } = require('./anemiaClassifier');
+import sqlite3pkg from 'sqlite3';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { predictAnemiaRisk } from './anemiaClassifier.js';
+
+const sqlite3 = sqlite3pkg.verbose();
+
+// ESM has no __dirname — reconstruct it from import.meta.url
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const DB_FILE = path.join(__dirname, 'aeris.db');
 
