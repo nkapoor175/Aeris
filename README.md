@@ -66,6 +66,8 @@ There are three ESP32 sketches in this repo and they are **not interchangeable**
 
 If you're prepping for a live demo, `AerisDevice/AerisDevice.ino` is the one that needs to compile and flash successfully. It hasn't been compiled with the real ESP32 toolchain in this environment (no `arduino-cli`/board packages available here) — it's been checked line-by-line (every function call site matches its declaration, braces/parens balanced) but **please do a real compile in the Arduino IDE/PlatformIO before relying on it for a demo.**
 
+Full wiring reference (component list, pin map, wiring diagram, bring-up order) is in [`docs/hardware.md`](docs/hardware.md).
+
 ---
 
 ## 🚀 Setup & Execution
