@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const { predictAnemiaRisk } = require('./anemiaClassifier');
 
 const PORT = process.env.PORT || 3001;
 const BASE_URL = `http://127.0.0.1:${PORT}`;
@@ -83,6 +84,8 @@ async function runTests() {
       hrv: 42.0,
       perfusion_index: 1.8,
       risk_level: 1,
+      red_raw: 90000,
+      ir_raw: 70000,
       timestamp: new Date().toISOString()
     };
     const { encrypted_payload, iv } = encrypt(validData, AES_KEY);
@@ -115,7 +118,11 @@ async function runTests() {
     assert(readings[0].spo2 === 96.5, `Expected spo2 96.5, got ${readings[0].spo2}`);
     assert(readings[0].hrv === 42, `Expected hrv 42, got ${readings[0].hrv}`);
     assert(readings[0].perfusion_index === 1.8, `Expected perfusion_index 1.8, got ${readings[0].perfusion_index}`);
-    assert(readings[0].risk_level === 1, `Expected risk_level 1, got ${readings[0].risk_level}`);
+    assert(readings[0].device_risk_level === 1, `Expected device_risk_level 1, got ${readings[0].device_risk_level}`);
+    assert(readings[0].red_raw === 90000, `Expected red_raw 90000, got ${readings[0].red_raw}`);
+    assert(readings[0].ir_raw === 70000, `Expected ir_raw 70000, got ${readings[0].ir_raw}`);
+    assert(readings[0].server_risk_level === null, `PT-0042 has no patient_context yet, expected server_risk_level null, got ${readings[0].server_risk_level}`);
+    assert(readings[0].server_risk_status === 'awaiting_patient_info', `Expected server_risk_status "awaiting_patient_info", got ${readings[0].server_risk_status}`);
     assert(readings[0].received_at !== undefined, 'Should contain received_at timestamp');
 
     // --- TEST 3: Unauthorized Device (Failure) ---
@@ -143,6 +150,8 @@ async function runTests() {
       hrv: 42.0,
       perfusion_index: 1.8,
       risk_level: 5, // Invalid: must be 0, 1, or 2
+      red_raw: 90000,
+      ir_raw: 70000,
       timestamp: new Date().toISOString()
     };
     const encryptedInvalid = encrypt(invalidData, AES_KEY);
@@ -221,6 +230,107 @@ async function runTests() {
     console.log('------------------------------------------------------------');
     console.log(logContent.trim());
     console.log('------------------------------------------------------------');
+
+    // --- TEST 8: Submitting Patient Context (Success) ---
+    console.log('\nRunning Test 8: Submitting patient-context for PT-CTXTEST...');
+    const res8 = await fetch(`${BASE_URL}/api/patient-context`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ patient_id: 'PT-CTXTEST', age: 30, gender: 0 })
+    });
+    assert(res8.status === 200, `Expected status 200, got ${res8.status}`);
+    const body8 = await res8.json();
+    assert(body8.message === 'Patient context saved', 'Should return confirmation message');
+    assert(body8.patient_id === 'PT-CTXTEST', 'Should echo back patient_id');
+    assert(body8.age === 30 && body8.gender === 0, 'Should echo back age and gender');
+
+    // Confirm it's retrievable via GET /api/patient-context/:patient_id
+    const res8b = await fetch(`${BASE_URL}/api/patient-context/PT-CTXTEST`);
+    assert(res8b.status === 200, `Expected status 200, got ${res8b.status}`);
+    const body8b = await res8b.json();
+    assert(body8b.age === 30 && body8b.gender === 0, 'GET should return the stored age/gender');
+
+    // A patient_id with no context should 404
+    const res8c = await fetch(`${BASE_URL}/api/patient-context/PT-NEVER-SUBMITTED`);
+    assert(res8c.status === 404, `Expected status 404 for unknown patient_id, got ${res8c.status}`);
+
+    // --- TEST 9: Reading Arriving BEFORE Patient Context Exists ---
+    // Use a fresh patient_id with no patient_context row at all yet.
+    console.log('\nRunning Test 9: Reading for PT-BEFORECTX arrives before any patient-context exists...');
+    const beforeCtxData = {
+      patient_id: 'PT-BEFORECTX',
+      spo2: 95.0,
+      hrv: 44.0,
+      perfusion_index: 1.6,
+      risk_level: 1,
+      red_raw: 90000,
+      ir_raw: 70000,
+      timestamp: new Date().toISOString()
+    };
+    const encBeforeCtx = encrypt(beforeCtxData, AES_KEY);
+    const res9 = await fetch(`${BASE_URL}/api/reading`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ device_id: 'aeris-001', encrypted_payload: encBeforeCtx.encrypted_payload, iv: encBeforeCtx.iv })
+    });
+    assert(res9.status === 201, `Expected status 201, got ${res9.status}`);
+    const body9 = await res9.json();
+    assert(body9.server_risk_level === null, `Expected server_risk_level null (no context yet), got ${body9.server_risk_level}`);
+    assert(body9.server_risk_status === 'awaiting_patient_info', `Expected server_risk_status "awaiting_patient_info", got ${body9.server_risk_status}`);
+
+    // --- TEST 10: Reading Arriving AFTER Patient Context Exists ---
+    // Submit context for the SAME patient_id, then submit another reading —
+    // server_risk_level should now be computed and match the ported
+    // classifier's output for the same red/ir/age/gender inputs.
+    console.log('\nRunning Test 10: Submitting patient-context for PT-BEFORECTX, then a follow-up reading...');
+    const res10ctx = await fetch(`${BASE_URL}/api/patient-context`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ patient_id: 'PT-BEFORECTX', age: 30, gender: 0 })
+    });
+    assert(res10ctx.status === 200, `Expected status 200, got ${res10ctx.status}`);
+
+    const afterCtxData = {
+      patient_id: 'PT-BEFORECTX',
+      spo2: 95.0,
+      hrv: 44.0,
+      perfusion_index: 1.6,
+      risk_level: 1,
+      red_raw: 90000,
+      ir_raw: 70000,
+      timestamp: new Date().toISOString()
+    };
+    const encAfterCtx = encrypt(afterCtxData, AES_KEY);
+    const res10 = await fetch(`${BASE_URL}/api/reading`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ device_id: 'aeris-001', encrypted_payload: encAfterCtx.encrypted_payload, iv: encAfterCtx.iv })
+    });
+    assert(res10.status === 201, `Expected status 201, got ${res10.status}`);
+    const body10 = await res10.json();
+    const expectedServerRisk = predictAnemiaRisk(90000, 70000, 30, 0);
+    assert(body10.server_risk_status === 'computed', `Expected server_risk_status "computed", got ${body10.server_risk_status}`);
+    assert(body10.server_risk_level === expectedServerRisk, `Expected server_risk_level ${expectedServerRisk} (matching ported classifier), got ${body10.server_risk_level}`);
+
+    // Confirm the EARLIER reading (Test 9, before context existed) is still
+    // null — server_risk_level is computed once at ingestion time and does
+    // NOT retroactively backfill older readings when context arrives later.
+    const res10b = await fetch(`${BASE_URL}/api/readings?patient_id=PT-BEFORECTX`);
+    const readings10b = await res10b.json();
+    assert(readings10b.length === 2, `Expected 2 readings for PT-BEFORECTX, got ${readings10b.length}`);
+    const olderReading = readings10b.find(r => r.id === body9.id);
+    assert(olderReading.server_risk_level === null, 'Reading submitted before context existed should remain null, not be backfilled');
+
+    // --- TEST 11: Ported Classifier Consistency (Same Inputs -> Same Output) ---
+    console.log('\nRunning Test 11: Verifying ported anemiaClassifier.js is deterministic across repeated calls...');
+    const consistencyInputs = [90000, 70000, 30, 0];
+    const results = [];
+    for (let i = 0; i < 5; i++) {
+      results.push(predictAnemiaRisk(...consistencyInputs));
+    }
+    assert(results.every(r => r === results[0]), `Expected identical results across 5 repeated calls, got: ${results.join(', ')}`);
+    assert([0, 1, 2].includes(results[0]), `Expected a valid risk level (0/1/2), got ${results[0]}`);
+    console.log(`   5 repeated calls with identical inputs all returned: ${results[0]}`);
 
     console.log('\n🎉 ALL TESTS PASSED SUCCESSFULLY! Pipeline is secure and fully functional.');
 

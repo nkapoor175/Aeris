@@ -2,7 +2,7 @@
 
 This repository contains the backend ingestion pipeline and matching ESP32 firmware reference code for the **Aeris (HTAD-06)** fingertip-based anemia/malnutrition screening device.
 
-The ESP32 device captures clinical metrics (SpO2, HRV, Perfusion Index), evaluates a risk level, encrypts the dataset on-device using **AES-256-CBC**, and POSTs it to this server. The server authenticates the device, decrypts the payload, runs schema validation, and archives the reading in SQLite.
+The ESP32 device captures clinical metrics (SpO2, HRV, Perfusion Index, raw Red/IR), evaluates a fast on-device risk level, encrypts the dataset using **AES-256-CBC**, and POSTs it to this server. The server authenticates the device, decrypts the payload, runs schema validation, archives the reading in SQLite, and — once a patient's real age/gender have been entered via the dashboard — re-runs the full ML classifier server-side for a more accurate estimate. See [Two-Tier Risk Model](#-two-tier-risk-model) below.
 
 ---
 
@@ -11,10 +11,24 @@ The ESP32 device captures clinical metrics (SpO2, HRV, Perfusion Index), evaluat
 - **Device Authentication**: Rejects requests from devices not present in the environment allowlist (`ALLOWED_DEVICES`).
 - **Cryptographic Security**: On-device AES-256-CBC encryption using ESP32 hardware entropy (`esp_random()`) and built-in `mbedtls` library. On-server Node.js `crypto` decryption.
 - **In-Memory Rate Limiting**: Mitigates DDoS/API abuse by capping requests at 10 requests/minute per individual `device_id`.
-- **Database Storage**: Lightweight, zero-config SQLite backend storing all validated readings.
+- **Two-Tier Risk Classification**: A fast on-device estimate (rule-based or ML with placeholder demographics) is always stored, and a full server-side ML estimate using the patient's real age/gender is computed and stored alongside it once that context exists. See below.
+- **Database Storage**: Lightweight, zero-config SQLite backend storing all validated readings plus per-patient demographic context.
 - **CORS Enabled**: Cross-Origin Resource Sharing (CORS) is enabled (`*`) for local development, allowing the dashboard frontend to call the API from other ports (e.g., React/Vue/Svelte on 5173 or 3000) without origin-block issues.
 - **Simple Polling Compatibility**: The `GET /api/readings` endpoint retrieves readings sorted chronologically by `received_at` DESC, making it ideal for simple client-side polling every few seconds to create a "live" feel.
 - **Privacy Compliance**: All console and file logs (`app.log`) omit patient identities and clinical parameter values in plaintext. Only request metadata (timestamps, IP, endpoints, status codes, device ID) are logged.
+
+---
+
+## 🩺 Two-Tier Risk Model
+
+Aeris classifies anemia/malnutrition risk in two stages:
+
+1. **On-device (fast, first-pass) estimate** — `device_risk_level`. Computed on the ESP32 itself, either by the rule-based Perfusion Index thresholding or the on-device ML model (`HardwareTest/AnemiaClassifier.h/.cpp`). The on-device ML model needs age/gender as inputs, but the hardware has no input mechanism for them yet, so it currently runs with **placeholder demographics (age=30, female)** — see `HardwareTest.ino`. This estimate is always present and is what drives the device's own LEDs/buzzer in real time.
+2. **Server-side (full) estimate** — `server_risk_level`. Computed by this backend using [`anemiaClassifier.js`](anemiaClassifier.js), a faithful Node.js port of the same decision tree (`AnemiaDecisionTree.h`), but fed the reading's **actual raw Red/IR values combined with the patient's real age/gender** (submitted once via `POST /api/patient-context`, see below) instead of the on-device placeholders.
+
+Until a patient's age/gender have been submitted, `server_risk_level` is `null` and `server_risk_status` reads `"awaiting_patient_info"` — the API deliberately does **not** fall back to placeholder-based demographics for this field, since that would silently present a low-confidence estimate as a real one. Once context exists, `server_risk_status` reads `"computed"`.
+
+**Important**: `server_risk_level` is computed once, at the moment a reading is ingested, using whatever patient-context exists *at that time*. If context is submitted *after* a reading has already been stored, that older reading's `server_risk_level` stays `null` — it is not retroactively recomputed. Only readings that arrive after context exists get a computed value.
 
 ---
 
@@ -24,10 +38,14 @@ The ESP32 device captures clinical metrics (SpO2, HRV, Perfusion Index), evaluat
 ├── .env                  # Configuration variables (Port, Key, Device Allowlist)
 ├── .env.example          # Environment variables template
 ├── server.js             # Express application & SQLite schema config
+├── anemiaClassifier.js   # Node.js port of the on-device ML decision tree (server-side risk)
 ├── seed.js               # Database seeding script for frontend prototyping
 ├── test_pipeline.js      # Self-contained integration & security test suite
 ├── app.log               # Generated request log (metadata only)
 ├── aeris.db              # SQLite Database file
+├── HardwareTest/
+│   ├── AnemiaClassifier.h/.cpp   # Original C++ ML classifier (source of truth for anemiaClassifier.js)
+│   └── AnemiaDecisionTree.h      # Generated decision tree used by AnemiaClassifier.cpp
 └── esp32_client/
     └── esp32_client.ino  # ESP32 Arduino/C++ firmware reference code
 ```
@@ -109,23 +127,91 @@ curl -X POST http://localhost:3001/api/reading \
   -H "Content-Type: application/json" \
   -d '{
     "device_id": "aeris-001",
-    "encrypted_payload": "2LTDp3/4XPndDCAPbFulDtZiTWutIuoHs0tg81wQYwdTo6ulXzm30F8NlrwGdx92fLM+PP1KKKvukIh4ZNVTMP60hwRs+wjE8jvn5/5mAi3thxEqNhOSJBPZbCrxwjjyNI6RhOHex3WSgWFO2etbi/00gdwytw6aCzkXveMJlvQ=",
+    "encrypted_payload": "2LTDp3/4XPndDCAPbFulDtZiTWutIuoHs0tg81wQYwdTo6ulXzm30F8NlrwGdx92fLM+PP1KKKvukIh4ZNVTMP60hwRs+wjE8jvn5/5mAi0Onyv/VVX18mrJryVrFTuAgU1ANUr4n0bFCf466lvIasyPM2baOmCbuQFEsdcxr1c75m1cbtWaxlCb5CUXmZBTBXQjYyJIxfqhTN5hQaAyiQ==",
     "iv": "3RL1kNnZSbD2EUfBKVkyfA=="
   }'
 ```
 
-#### Expected Server Response (`201 Created`):
+This decrypts to `{ patient_id: "PT-0042", spo2: 96, hrv: 42, perfusion_index: 1.8, risk_level: 1, red_raw: 90000, ir_raw: 70000, timestamp: "2026-08-20T14:23:00Z" }`.
+
+#### Expected Server Response (`201 Created`), no patient-context yet:
 ```json
 {
   "message": "Reading successfully processed and stored",
-  "id": 1
+  "id": 1,
+  "device_risk_level": 1,
+  "server_risk_level": null,
+  "server_risk_status": "awaiting_patient_info"
 }
 ```
 
 #### Fetch Stored Readings (Ideal for Polling):
-Retrieve all readings (or filter by patient ID):
+Retrieve all readings (or filter by patient ID). Each reading includes both risk tiers and the patient's stored demographics (if any):
 
 ```bash
+curl "http://localhost:3001/api/readings?patient_id=PT-0042"
+```
+
+---
+
+## 📡 API Reference
+
+### `POST /api/reading`
+Called by the ESP32 device. Requires `device_id` to be in `ALLOWED_DEVICES` and enforces the 10 req/min rate limit. Body: `{ device_id, encrypted_payload, iv }`, where `encrypted_payload` decrypts to:
+
+| Field              | Type   | Notes                                                      |
+|--------------------|--------|--------------------------------------------------------------|
+| `patient_id`       | string | non-empty                                                   |
+| `spo2`             | number | 0–100                                                        |
+| `hrv`              | number | ≥ 0                                                           |
+| `perfusion_index`  | number | ≥ 0                                                           |
+| `risk_level`       | number | 0, 1, or 2 — the on-device estimate, stored as `device_risk_level` |
+| `red_raw`          | number | ≥ 0 — raw Red optical value from MAX30102                   |
+| `ir_raw`           | number | ≥ 0 — raw IR optical value from MAX30102                    |
+| `timestamp`        | string | ISO 8601                                                     |
+
+Returns `201` with `{ message, id, device_risk_level, server_risk_level, server_risk_status }`. `server_risk_level`/`server_risk_status` reflect whether patient-context existed for this `patient_id` *at the moment this reading arrived* (see [Two-Tier Risk Model](#-two-tier-risk-model)).
+
+### `GET /api/readings?patient_id=<optional>`
+Returns stored readings (newest first), each including `device_risk_level`, `server_risk_level`, `server_risk_status`, and `patient_age`/`patient_gender` (from `patient_context`, `null` if never submitted).
+
+### `POST /api/patient-context`
+Not device-authenticated — intended for the (not-yet-built) dashboard. Body: `{ patient_id, age, gender }` where `age` is an integer 1–120 and `gender` is `0` (female) or `1` (male). Upserts by `patient_id` — call it once, or again later to update. Returns `200` with the saved record.
+
+```bash
+curl -X POST http://localhost:3001/api/patient-context \
+  -H "Content-Type: application/json" \
+  -d '{"patient_id": "PT-0042", "age": 34, "gender": 0}'
+```
+
+### `GET /api/patient-context/:patient_id`
+Fetches stored demographics for a patient — useful for a dashboard to pre-fill a form. Returns `200` with `{ patient_id, age, gender, updated_at }`, or `404` if no context has been submitted for that patient yet.
+
+```bash
+curl http://localhost:3001/api/patient-context/PT-0042
+```
+
+### Full walkthrough: patient-context → reading → `server_risk_level`
+
+Submitting context *before* a reading arrives is what makes `server_risk_level` get computed for that reading (see the retroactivity note in [Two-Tier Risk Model](#-two-tier-risk-model)):
+
+```bash
+# 1. Submit patient context FIRST
+curl -X POST http://localhost:3001/api/patient-context \
+  -H "Content-Type: application/json" \
+  -d '{"patient_id": "PT-0042", "age": 34, "gender": 0}'
+
+# 2. THEN submit the reading (same pre-encrypted payload as above)
+curl -X POST http://localhost:3001/api/reading \
+  -H "Content-Type: application/json" \
+  -d '{
+    "device_id": "aeris-001",
+    "encrypted_payload": "2LTDp3/4XPndDCAPbFulDtZiTWutIuoHs0tg81wQYwdTo6ulXzm30F8NlrwGdx92fLM+PP1KKKvukIh4ZNVTMP60hwRs+wjE8jvn5/5mAi0Onyv/VVX18mrJryVrFTuAgU1ANUr4n0bFCf466lvIasyPM2baOmCbuQFEsdcxr1c75m1cbtWaxlCb5CUXmZBTBXQjYyJIxfqhTN5hQaAyiQ==",
+    "iv": "3RL1kNnZSbD2EUfBKVkyfA=="
+  }'
+# -> { "message": "...", "id": 1, "device_risk_level": 1, "server_risk_level": 1, "server_risk_status": "computed" }
+
+# 3. Fetch it back — server_risk_level and patient_age/patient_gender are now populated
 curl "http://localhost:3001/api/readings?patient_id=PT-0042"
 ```
 
