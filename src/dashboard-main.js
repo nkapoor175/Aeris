@@ -58,6 +58,22 @@ function genderLabel(genderCode) {
   return 'Unknown';
 }
 
+// patient_id, device_id, and error messages are user/API-controlled strings
+// with no server-side character restrictions (server.js only checks
+// non-empty). They get interpolated into innerHTML templates throughout
+// this file for layout flexibility (colored badges, mixed inline markup) —
+// every such interpolation MUST go through this first, or a patient_id like
+// "<img src=x onerror=...>" submitted via the (unauthenticated)
+// POST /api/patient-context executes in every viewer's browser.
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 // The "authoritative" result for a reading: server_risk_level once
 // computed, otherwise the on-device fast estimate. Never invents a
 // value — callers must check `.isServerVerified` to render the
@@ -222,7 +238,7 @@ function renderOledMirror(reading) {
     <div style="margin: 6px 0;">
       <div class="oled-result__risk" style="color:${cMap.color}">RESULT: ${cMap.oledText} (Code ${cMap.code ?? '—'})</div>
       <div class="oled-readings">
-        <span>${reading.patient_id}</span>
+        <span>${escapeHtml(reading.patient_id)}</span>
         <span>SpO₂ ${reading.spo2}%</span>
         <span>PI ${reading.perfusion_index}%</span>
       </div>
@@ -276,7 +292,7 @@ function renderRecentActivityTable() {
   tbody.innerHTML = recents.map((r) => `
     <tr class="clickable-row" data-id="${r.id}">
       <td><strong>#${r.id}</strong></td>
-      <td>${r.patient_id}</td>
+      <td>${escapeHtml(r.patient_id)}</td>
       <td>${r.patient_age ?? '—'} / ${genderLabel(r.patient_gender)}</td>
       <td>${resultCellHtml(r)}</td>
       <td><span class="dash-signal-pill">● N/A</span></td>
@@ -338,11 +354,11 @@ function initScreeningForm() {
       try {
         await submitPatientContext(patientId, age, gender);
         if (statusEl) {
-          statusEl.innerHTML = `<span style="color:#4A9B6E">Saved. Future readings for ${patientId} will include a server-side estimate — existing readings are not retroactively updated.</span>`;
+          statusEl.innerHTML = `<span style="color:#4A9B6E">Saved. Future readings for ${escapeHtml(patientId)} will include a server-side estimate — existing readings are not retroactively updated.</span>`;
         }
         await refreshAllData();
       } catch (err) {
-        if (statusEl) statusEl.innerHTML = `<span style="color:#B93B3B">Failed to save: ${err.message}</span>`;
+        if (statusEl) statusEl.innerHTML = `<span style="color:#B93B3B">Failed to save: ${escapeHtml(err.message)}</span>`;
       }
     });
   }
@@ -362,7 +378,7 @@ function renderFullScreeningsTable() {
     return `
       <tr class="clickable-row" data-id="${r.id}">
         <td><strong>#${r.id}</strong></td>
-        <td>${r.patient_id}</td>
+        <td>${escapeHtml(r.patient_id)}</td>
         <td>${r.patient_age ?? '—'}</td>
         <td>${genderLabel(r.patient_gender)}</td>
         <td>${new Date(r.received_at).toLocaleString()}</td>
@@ -419,9 +435,9 @@ function openScreeningModal(readingId) {
         <h4 class="action-text">${serverHasValue ? server.action : 'Awaiting patient info for a full estimate'}</h4>
       </div>
       <div class="dash-meta-list" style="margin-top:14px;padding:0;">
-        <div class="dash-meta-row"><span>Patient ID</span><strong>${r.patient_id}</strong></div>
+        <div class="dash-meta-row"><span>Patient ID</span><strong>${escapeHtml(r.patient_id)}</strong></div>
         <div class="dash-meta-row"><span>Age / Gender</span><strong>${r.patient_age ?? '—'} yrs / ${genderLabel(r.patient_gender)}</strong></div>
-        <div class="dash-meta-row"><span>Device</span><strong>${r.device_id}</strong></div>
+        <div class="dash-meta-row"><span>Device</span><strong>${escapeHtml(r.device_id)}</strong></div>
         <div class="dash-meta-row"><span>Device Result</span><strong style="color:${device.color}">${device.label} (Code ${device.code})</strong></div>
         <div class="dash-meta-row"><span>Server Result</span><strong style="color:${server.color}">${serverHasValue ? `${server.label} (Code ${server.code})` : server.label}</strong></div>
         <div class="dash-meta-row"><span>SpO₂</span><strong>${r.spo2}%</strong></div>
@@ -454,7 +470,8 @@ function populatePatientSelect() {
     const reading = patientReadings(id)[0];
     const age = reading?.patient_age ?? '—';
     const gender = genderLabel(reading?.patient_gender);
-    return `<option value="${id}">Patient ${id} (${gender}, ${age} yrs)</option>`;
+    const safeId = escapeHtml(id);
+    return `<option value="${safeId}">Patient ${safeId} (${gender}, ${age} yrs)</option>`;
   }).join('');
 
   // Keep the previous selection if it's still valid, otherwise default to the first patient
@@ -492,7 +509,7 @@ function renderPatientView() {
   if (profileCard) {
     profileCard.innerHTML = `
       <div class="dash-panel__header">
-        <span class="dash-panel__title">Patient ${patientId}</span>
+        <span class="dash-panel__title">Patient ${escapeHtml(patientId)}</span>
         <span class="dash-badge" style="color:${cMap.color};background:${cMap.bgColor}">LATEST: ${cMap.label}</span>
       </div>
       <div class="dash-id-row">
@@ -677,7 +694,7 @@ function renderFullDeviceStatus() {
       <div class="dash-device-item" style="justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--color-border)">
         <div style="display:flex;align-items:center;gap:10px;">
           <span class="dash-device-dot is-active"></span>
-          <span>${deviceId}</span>
+          <span>${escapeHtml(deviceId)}</span>
         </div>
         <strong style="font-family:var(--font-mono);font-size:12px;color:var(--color-accent)">${readings.length} readings · last seen ${lastSeen}</strong>
       </div>
