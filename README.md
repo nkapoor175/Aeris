@@ -53,9 +53,10 @@ Create a `.env` file in the root directory (based on `.env.example`):
 PORT=3001
 
 # AES_KEY must be exactly 32 bytes (256-bit).
-# Can be a 32-character ASCII string OR a 64-character hex-encoded string.
-# (Hardcoded constant for prototype, no key exchange protocol needed)
-AES_KEY=aeris_super_secure_key_32_bytes_
+# Generate a fresh key with:
+#   node -e "require('crypto').randomBytes(32).toString('hex')" | clip
+# Then paste the 64-char hex output here.
+AES_KEY=<paste-your-64-char-hex-key-here>
 
 # Comma-separated list of allowed device IDs
 ALLOWED_DEVICES=aeris-001,aeris-002,aeris-003
@@ -95,14 +96,20 @@ node test_pipeline.js
 
 ### Option B: Manual Testing via Curl (Pre-encrypted Payload)
 
-If you wish to test the server manually without a physical device, send this `curl` request containing a pre-encrypted payload (encrypted with the key `aeris_super_secure_key_32_bytes_`):
+The payload below is encrypted with a **documentation-only** key (`aeris_EXAMPLE_ONLY_not_real_key!`)
+that exists solely for verifying the server mechanics. To use it, set `AES_KEY` in your `.env` to
+that same documentation key, start the server, then run the curl command:
+
+> ⚠️ The documentation key is intentionally published here for testing. Use your own randomly
+> generated key for any real deployment.
 
 ```bash
+# First: set AES_KEY=aeris_EXAMPLE_ONLY_not_real_key! in your .env, then start the server.
 curl -X POST http://localhost:3001/api/reading \
   -H "Content-Type: application/json" \
   -d '{
     "device_id": "aeris-001",
-    "encrypted_payload": "Z1WCERk3h+nkCwBCAYxQITZGO7TnQeuGtm1jDy/nfbP+kkKY9WcA4IQmU2rHAuGWg14Vnu2cHwTOx4c8/TTiZdw+0IlXoME/7pwX0CJlWuRKe6HsG+NQO4kBMdu1kAd8o9LCjOefNjccBqt70PSrie3eNP5h06M0M9u2cCIYz5o=",
+    "encrypted_payload": "2LTDp3/4XPndDCAPbFulDtZiTWutIuoHs0tg81wQYwdTo6ulXzm30F8NlrwGdx92fLM+PP1KKKvukIh4ZNVTMP60hwRs+wjE8jvn5/5mAi3thxEqNhOSJBPZbCrxwjjyNI6RhOHex3WSgWFO2etbi/00gdwytw6aCzkXveMJlvQ=",
     "iv": "3RL1kNnZSbD2EUfBKVkyfA=="
   }'
 ```

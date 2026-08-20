@@ -6,7 +6,17 @@ const path = require('path');
 
 const PORT = process.env.PORT || 3001;
 const BASE_URL = `http://127.0.0.1:${PORT}`;
-const AES_KEY = process.env.AES_KEY || 'aeris_super_secure_key_32_bytes_';
+
+// AES_KEY MUST be set in .env — no hardcoded fallback.
+// The old default key (aeris_super_secure_key_32_bytes_) has been rotated and
+// must no longer be used. Run `node -e "require('crypto').randomBytes(32).toString('hex')" | clip`
+// to generate a new 64-char hex key and paste it into your .env as AES_KEY.
+if (!process.env.AES_KEY) {
+  console.error('ERROR: AES_KEY is not set in the environment. Cannot run tests without it.');
+  console.error('Copy .env.example to .env and fill in a real 32-byte key before running.');
+  process.exit(1);
+}
+const AES_KEY = process.env.AES_KEY;
 
 // Encrypt helper using AES-256-CBC
 function encrypt(payloadObj, keyString) {
@@ -61,8 +71,8 @@ async function runTests() {
     console.error(`[Server Error] ${data.toString().trim()}`);
   });
 
-  // Wait 1.5 seconds for server and database initialization
-  await new Promise(resolve => setTimeout(resolve, 1500));
+  // Wait 3 seconds for server and database initialization (sqlite3 native module needs extra time)
+  await new Promise(resolve => setTimeout(resolve, 3000));
 
   try {
     // --- TEST 1: Authorized Ingestion (Success) ---

@@ -185,7 +185,11 @@ function decryptPayload(encryptedBase64, ivBase64) {
 }
 
 // --- Endpoint: POST /api/reading ---
-app.post('/api/reading', deviceRateLimiter, deviceAuthenticator, (req, res) => {
+// SECURITY NOTE: deviceAuthenticator MUST run before deviceRateLimiter.
+// If the order were reversed, an attacker could exhaust the rate-limit bucket for a
+// real device ID (e.g. aeris-001) using 10 unauthenticated requests, locking out the
+// legitimate ESP32 hardware for a minute — a trivial unauthenticated DoS.
+app.post('/api/reading', deviceAuthenticator, deviceRateLimiter, (req, res) => {
   const { device_id, encrypted_payload, iv } = req.body;
 
   // 1. Check outer JSON fields

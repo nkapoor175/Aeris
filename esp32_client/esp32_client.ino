@@ -21,11 +21,13 @@ const char* ssid = "YOUR_WIFI_SSID";
 const char* password = "YOUR_WIFI_PASSWORD";
 
 // --- Backend API Settings ---
-const char* server_url = "http://YOUR_SERVER_IP:3000/api/reading";
+const char* server_url = "http://YOUR_SERVER_IP:3001/api/reading";
 
 // --- Shared Pre-Shared Key (32 bytes / 256 bits) ---
-// MUST match the AES_KEY in the backend server's .env file.
-const char* aes_key = "aeris_super_secure_key_32_bytes_";
+// ⚠️  SECURITY: Replace this placeholder with the ACTUAL key from your team's .env file.
+// DO NOT commit the real key to version control.
+// The key must be exactly 32 ASCII characters (256 bits) and match AES_KEY on the server.
+const char* aes_key = "REPLACE_WITH_YOUR_32_CHAR_SECRET!";
 
 // --- Allowed Device ID ---
 // MUST be registered in the backend server's ALLOWED_DEVICES env list.
