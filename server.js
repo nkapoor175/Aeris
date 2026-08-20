@@ -4,6 +4,7 @@ const sqlite3 = require('sqlite3').verbose();
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const { predictAnemiaRisk } = require('./anemiaClassifier');
 
 const app = express();
 app.use(express.json());
@@ -62,6 +63,13 @@ const db = new sqlite3.Database(DB_FILE, (err) => {
 });
 
 db.serialize(() => {
+  // NOTE: this is a schema change from the previous "risk_level" column
+  // (now "device_risk_level", plus new red_raw/ir_raw/server_risk_level
+  // columns). aeris.db is gitignored and never shipped with real data, so
+  // this ships as a fresh CREATE TABLE rather than a migration. If you
+  // have a local aeris.db from before this change, delete it (or re-run
+  // seed.js) — CREATE TABLE IF NOT EXISTS will NOT retrofit the new
+  // columns onto an existing old-schema table.
   db.run(`
     CREATE TABLE IF NOT EXISTS readings (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -70,13 +78,34 @@ db.serialize(() => {
       spo2 REAL NOT NULL,
       hrv REAL NOT NULL,
       perfusion_index REAL NOT NULL,
-      risk_level INTEGER NOT NULL,
+      red_raw REAL NOT NULL,
+      ir_raw REAL NOT NULL,
+      device_risk_level INTEGER NOT NULL,
+      server_risk_level INTEGER,
       timestamp TEXT NOT NULL,
       received_at TEXT NOT NULL
     )
   `, (err) => {
     if (err) {
       console.error('ERROR: Failed to create readings table:', err.message);
+      process.exit(1);
+    }
+  });
+
+  // Patient demographic context (age/gender), entered once via the
+  // dashboard and reused for every future reading from that patient_id.
+  // gender follows the same 0=Female/1=Male convention as
+  // HardwareTest/AnemiaClassifier.h's GENDER_FEMALE/GENDER_MALE constants.
+  db.run(`
+    CREATE TABLE IF NOT EXISTS patient_context (
+      patient_id TEXT PRIMARY KEY,
+      age INTEGER NOT NULL,
+      gender INTEGER NOT NULL,
+      updated_at TEXT NOT NULL
+    )
+  `, (err) => {
+    if (err) {
+      console.error('ERROR: Failed to create patient_context table:', err.message);
       process.exit(1);
     }
   });
@@ -202,7 +231,10 @@ app.post('/api/reading', deviceAuthenticator, deviceRateLimiter, (req, res) => {
     const decrypted = decryptPayload(encrypted_payload, iv);
 
     // 3. Validate decrypted payload fields
-    const { patient_id, spo2, hrv, perfusion_index, risk_level, timestamp } = decrypted;
+    // NOTE: the field is still named "risk_level" on the wire (unchanged
+    // firmware payload key), but it's stored/returned as device_risk_level
+    // to distinguish it from the new server-computed server_risk_level.
+    const { patient_id, spo2, hrv, perfusion_index, risk_level, timestamp, red_raw, ir_raw } = decrypted;
 
     if (typeof patient_id !== 'string' || patient_id.trim() === '') {
       return res.status(400).json({ error: 'Invalid or missing patient_id in payload' });
@@ -219,37 +251,70 @@ app.post('/api/reading', deviceAuthenticator, deviceRateLimiter, (req, res) => {
     if (typeof risk_level !== 'number' || ![0, 1, 2].includes(risk_level)) {
       return res.status(400).json({ error: 'Invalid or missing risk_level in payload (must be 0, 1, or 2)' });
     }
+    if (typeof red_raw !== 'number' || isNaN(red_raw) || red_raw < 0) {
+      return res.status(400).json({ error: 'Invalid or missing red_raw in payload' });
+    }
+    if (typeof ir_raw !== 'number' || isNaN(ir_raw) || ir_raw < 0) {
+      return res.status(400).json({ error: 'Invalid or missing ir_raw in payload' });
+    }
     if (typeof timestamp !== 'string' || isNaN(Date.parse(timestamp))) {
       return res.status(400).json({ error: 'Invalid or missing timestamp in payload' });
     }
 
-    // 4. Save to Database
-    const received_at = new Date().toISOString();
-    const query = `
-      INSERT INTO readings (patient_id, device_id, spo2, hrv, perfusion_index, risk_level, timestamp, received_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `;
-    const params = [
-      patient_id,
-      device_id,
-      spo2,
-      hrv,
-      perfusion_index,
-      risk_level,
-      timestamp,
-      received_at
-    ];
+    // 4. Look up patient demographic context (age/gender). If it exists,
+    // re-run the full ML classifier server-side using the *real* age/gender
+    // instead of the on-device placeholder (age=30/female). If it doesn't
+    // exist yet, server_risk_level stays null — we do NOT silently fall
+    // back to placeholder demographics for a clinical estimate.
+    db.get(
+      'SELECT age, gender FROM patient_context WHERE patient_id = ?',
+      [patient_id],
+      (ctxErr, contextRow) => {
+        if (ctxErr) {
+          console.error('Patient context lookup error:', ctxErr.message);
+          return res.status(500).json({ error: 'Failed to look up patient context' });
+        }
 
-    db.run(query, params, function (err) {
-      if (err) {
-        console.error('Database insertion error:', err.message);
-        return res.status(500).json({ error: 'Failed to save record to database' });
+        let serverRiskLevel = null;
+        if (contextRow) {
+          serverRiskLevel = predictAnemiaRisk(red_raw, ir_raw, contextRow.age, contextRow.gender);
+        }
+
+        // 5. Save to Database (both device_risk_level and server_risk_level)
+        const received_at = new Date().toISOString();
+        const query = `
+          INSERT INTO readings (patient_id, device_id, spo2, hrv, perfusion_index, red_raw, ir_raw, device_risk_level, server_risk_level, timestamp, received_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `;
+        const params = [
+          patient_id,
+          device_id,
+          spo2,
+          hrv,
+          perfusion_index,
+          red_raw,
+          ir_raw,
+          risk_level,
+          serverRiskLevel,
+          timestamp,
+          received_at
+        ];
+
+        db.run(query, params, function (err) {
+          if (err) {
+            console.error('Database insertion error:', err.message);
+            return res.status(500).json({ error: 'Failed to save record to database' });
+          }
+          res.status(201).json({
+            message: 'Reading successfully processed and stored',
+            id: this.lastID,
+            device_risk_level: risk_level,
+            server_risk_level: serverRiskLevel,
+            server_risk_status: serverRiskLevel === null ? 'awaiting_patient_info' : 'computed'
+          });
+        });
       }
-      res.status(201).json({
-        message: 'Reading successfully processed and stored',
-        id: this.lastID
-      });
-    });
+    );
 
   } catch (error) {
     // Return detailed decryption error
@@ -258,26 +323,106 @@ app.post('/api/reading', deviceAuthenticator, deviceRateLimiter, (req, res) => {
 });
 
 // --- Endpoint: GET /api/readings ---
+// Returns device_risk_level (on-device fast estimate) and server_risk_level
+// (full server-side estimate, present once patient-context exists) per
+// reading, plus the patient's stored age/gender if available.
 app.get('/api/readings', (req, res) => {
   const { patient_id } = req.query;
-  
-  let query = 'SELECT * FROM readings';
+
+  let query = `
+    SELECT
+      r.id, r.patient_id, r.device_id, r.spo2, r.hrv, r.perfusion_index,
+      r.red_raw, r.ir_raw, r.device_risk_level, r.server_risk_level,
+      r.timestamp, r.received_at,
+      pc.age AS patient_age, pc.gender AS patient_gender
+    FROM readings r
+    LEFT JOIN patient_context pc ON pc.patient_id = r.patient_id
+  `;
   const params = [];
 
   if (patient_id) {
-    query += ' WHERE patient_id = ?';
+    query += ' WHERE r.patient_id = ?';
     params.push(patient_id);
   }
 
-  query += ' ORDER BY received_at DESC';
+  query += ' ORDER BY r.received_at DESC';
 
   db.all(query, params, (err, rows) => {
     if (err) {
       console.error('Database query error:', err.message);
       return res.status(500).json({ error: 'Failed to retrieve data from database' });
     }
-    res.json(rows);
+    const enriched = rows.map((row) => ({
+      ...row,
+      server_risk_status: row.server_risk_level === null ? 'awaiting_patient_info' : 'computed'
+    }));
+    res.json(enriched);
   });
+});
+
+// --- Endpoint: POST /api/patient-context ---
+// Stores/updates a patient's age & gender, entered once via the dashboard
+// and reused for every future reading from that patient_id (upsert on
+// patient_id). NOTE: unlike /api/reading, this endpoint has no device
+// authentication — it's meant to be called by the (not-yet-built) dashboard
+// directly, not the ESP32. In this hackathon build it's an open endpoint;
+// flagging that it would need real auth (e.g. a dashboard login/session)
+// before this went anywhere near real patient data.
+app.post('/api/patient-context', (req, res) => {
+  const { patient_id, age, gender } = req.body;
+
+  if (typeof patient_id !== 'string' || patient_id.trim() === '') {
+    return res.status(400).json({ error: 'Invalid or missing patient_id' });
+  }
+  if (typeof age !== 'number' || !Number.isInteger(age) || age <= 0 || age > 120) {
+    return res.status(400).json({ error: 'Invalid or missing age (must be an integer between 1 and 120)' });
+  }
+  if (gender !== 0 && gender !== 1) {
+    return res.status(400).json({ error: 'Invalid or missing gender (must be 0 = female or 1 = male)' });
+  }
+
+  const updated_at = new Date().toISOString();
+  const query = `
+    INSERT INTO patient_context (patient_id, age, gender, updated_at)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(patient_id) DO UPDATE SET age = excluded.age, gender = excluded.gender, updated_at = excluded.updated_at
+  `;
+
+  db.run(query, [patient_id, age, gender, updated_at], function (err) {
+    if (err) {
+      console.error('Patient context upsert error:', err.message);
+      return res.status(500).json({ error: 'Failed to save patient context' });
+    }
+    res.status(200).json({
+      message: 'Patient context saved',
+      patient_id,
+      age,
+      gender,
+      updated_at
+    });
+  });
+});
+
+// --- Endpoint: GET /api/patient-context/:patient_id ---
+// Fetches stored demographic info for a patient (e.g. to pre-fill a
+// dashboard form if context was already entered).
+app.get('/api/patient-context/:patient_id', (req, res) => {
+  const { patient_id } = req.params;
+
+  db.get(
+    'SELECT patient_id, age, gender, updated_at FROM patient_context WHERE patient_id = ?',
+    [patient_id],
+    (err, row) => {
+      if (err) {
+        console.error('Patient context query error:', err.message);
+        return res.status(500).json({ error: 'Failed to retrieve patient context' });
+      }
+      if (!row) {
+        return res.status(404).json({ error: `No patient context found for patient_id: ${patient_id}` });
+      }
+      res.json(row);
+    }
+  );
 });
 
 // --- Server Startup & Cleanup ---

@@ -130,13 +130,18 @@ bool encrypt_payload(const char* plaintext, String& out_encrypted_base64, String
 }
 
 // Formats mock patient data into unencrypted JSON payload
-String build_patient_json(const char* patient_id, float spo2, float hrv, float perfusion_index, int risk_level, const char* timestamp) {
+// red_raw/ir_raw are the raw MAX30102 optical values (same features the
+// on-device AnemiaClassifier ML model consumes) so the server can re-run
+// full classification once real patient age/gender exists server-side.
+String build_patient_json(const char* patient_id, float spo2, float hrv, float perfusion_index, int risk_level, float red_raw, float ir_raw, const char* timestamp) {
   String json = "{";
   json += "\"patient_id\":\"" + String(patient_id) + "\",";
   json += "\"spo2\":" + String(spo2, 1) + ",";
   json += "\"hrv\":" + String(hrv, 1) + ",";
   json += "\"perfusion_index\":" + String(perfusion_index, 2) + ",";
   json += "\"risk_level\":" + String(risk_level) + ",";
+  json += "\"red_raw\":" + String(red_raw, 1) + ",";
+  json += "\"ir_raw\":" + String(ir_raw, 1) + ",";
   json += "\"timestamp\":\"" + String(timestamp) + "\"";
   json += "}";
   return json;
@@ -187,7 +192,15 @@ void send_reading() {
   float spo2 = 94.0 + random(0, 60) / 10.0;            // Simulated SpO2 (94.0% to 100.0%)
   float hrv = 35.0 + random(0, 150) / 10.0;            // Simulated HRV (35.0 to 50.0 ms)
   float perfusion_index = 0.5 + random(0, 250) / 100.0;// Simulated Perfusion Index (0.5 to 3.0)
-  
+
+  // Simulated raw MAX30102 optical values (finger-present ADC range).
+  // These are the same Red/IR inputs the on-device AnemiaClassifier ML
+  // model uses, transmitted so the server can re-run the full model once
+  // it has real patient age/gender (on-device inference still uses
+  // placeholder age=30/gender=female per HardwareTest.ino).
+  float red_raw = 70000.0 + random(0, 600) * 100.0;  // ~70,000 - 130,000
+  float ir_raw  = 60000.0 + random(0, 500) * 100.0;  // ~60,000 - 110,000
+
   // Risk assessment: 0=Low/Green, 1=Medium/Yellow, 2=High/Red
   int risk_level = 0;
   if (spo2 < 92.0 || perfusion_index < 0.8) {
@@ -197,10 +210,10 @@ void send_reading() {
   }
 
   // Real timestamp (simulate UTC ISO string; in production, fetch via NTP or RTC)
-  const char* timestamp = "2026-08-20T14:23:00Z"; 
+  const char* timestamp = "2026-08-20T14:23:00Z";
 
   // 2. Build the inner patient payload JSON
-  String patient_json = build_patient_json("PT-0042", spo2, hrv, perfusion_index, risk_level, timestamp);
+  String patient_json = build_patient_json("PT-0042", spo2, hrv, perfusion_index, risk_level, red_raw, ir_raw, timestamp);
   Serial.print("1. Unencrypted Patient Data: ");
   Serial.println(patient_json);
 
