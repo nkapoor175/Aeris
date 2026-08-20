@@ -37,12 +37,20 @@ Until a patient's age/gender have been submitted, `server_risk_level` is `null` 
 ```
 ├── .env                  # Configuration variables (Port, Key, Device Allowlist)
 ├── .env.example          # Environment variables template
-├── server.js             # Express application & SQLite schema config
+├── server.js             # Express application, SQLite schema, and static-serves dist/ if built
 ├── anemiaClassifier.js   # Node.js port of the on-device ML decision tree (server-side risk)
 ├── seed.js               # Database seeding script for frontend prototyping
 ├── test_pipeline.js      # Self-contained integration & security test suite
 ├── app.log               # Generated request log (metadata only)
 ├── aeris.db              # SQLite Database file
+├── index.html, dashboard.html   # Vite entry points — landing/story page & the screening console
+├── vite.config.js
+├── src/
+│   ├── main.js, style.css, master-canvas.js           # index.html's scroll-driven story page
+│   ├── dashboard-main.js, dashboard-style.css          # dashboard.html's logic — real API data only
+│   ├── api-client.js          # fetch wrapper around the backend (readings, patient-context)
+│   └── classification-map.js  # risk-code -> label/color/action presentation map
+├── public/                # Static assets (favicon, images) served as-is by Vite
 ├── HardwareTest/
 │   ├── AnemiaClassifier.h/.cpp   # Original C++ ML classifier (source of truth for anemiaClassifier.js)
 │   └── AnemiaDecisionTree.h      # Generated decision tree used by AnemiaClassifier.cpp
@@ -99,6 +107,29 @@ node server.js
 ```
 
 The server will bind to **`http://localhost:3001`**.
+
+### 5. Running the Dashboard
+
+The dashboard (`index.html` landing/story page + `dashboard.html` screening console) is a separate Vite app in the same repo. It talks to the backend over HTTP (see `src/api-client.js`), so **the server from step 4 needs to be running** for the dashboard to show anything real.
+
+**Local development** (hot-reload, served by Vite on its own port):
+
+```bash
+npm run dev
+```
+
+Opens on `http://localhost:5173`. The dashboard's API calls are hardcoded to `http://localhost:3001` in `src/api-client.js` — if you change `PORT` in `.env`, update that constant too. CORS is already enabled server-side (`*`) so cross-port calls from 5173 → 3001 work without extra config.
+
+**Production-style build** (dashboard and API served from one origin/port — no CORS needed):
+
+```bash
+npm run build   # outputs to dist/
+node server.js  # server.js serves dist/ automatically via express.static if it exists
+```
+
+Then visit `http://localhost:3001/dashboard.html` directly — same server, same port, as the API.
+
+**Views in the console** (`dashboard.html`): Overview (live stats + latest reading + patient-context form), Screenings (full audit log), Patient (per-patient history + trend chart), Device (which physical devices have reported, offline-queue UI demo). All four render from real `GET /api/readings` data, polling every 5s — none of it is mock/fabricated data.
 
 ---
 
