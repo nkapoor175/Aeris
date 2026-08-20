@@ -10,9 +10,9 @@
  * file from the new AnemiaDecisionTree.h instead of hand-editing it.
  */
 
-const RISK_LOW = 0;
-const RISK_MEDIUM = 1;
-const RISK_HIGH = 2;
+export const RISK_LOW = 0;
+export const RISK_MEDIUM = 1;
+export const RISK_HIGH = 2;
 
 // Direct port of Eloquent::ML::Port::AnemiaDecisionTree::predict(float *x)
 // x[0] = red, x[1] = ir, x[2] = redIrRatio, x[3] = age, x[4] = genderMale
@@ -131,7 +131,7 @@ function predictTree(x) {
  * @param {number} genderMale  0 = Female, 1 = Male
  * @returns {number} risk level (0: Low, 1: Medium, 2: High)
  */
-function predictAnemiaRisk(redValue, irValue, age, genderMale) {
+export function predictAnemiaRisk(redValue, irValue, age, genderMale) {
   if (irValue <= 0) {
     return RISK_HIGH; // matches C++ safety check: avoid divide-by-zero on bad sensor data
   }
@@ -140,5 +140,3 @@ function predictAnemiaRisk(redValue, irValue, age, genderMale) {
   const features = [redValue, irValue, redIrRatio, age, genderMale];
   return predictTree(features);
 }
-
-module.exports = { predictAnemiaRisk, RISK_LOW, RISK_MEDIUM, RISK_HIGH };

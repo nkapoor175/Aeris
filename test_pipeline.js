@@ -1,9 +1,14 @@
-require('dotenv').config();
-const crypto = require('crypto');
-const { spawn } = require('child_process');
-const fs = require('fs');
-const path = require('path');
-const { predictAnemiaRisk } = require('./anemiaClassifier');
+import 'dotenv/config';
+import crypto from 'crypto';
+import { spawn } from 'child_process';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { predictAnemiaRisk } from './anemiaClassifier.js';
+
+// ESM has no __dirname — reconstruct it from import.meta.url
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const PORT = process.env.PORT || 3001;
 const BASE_URL = `http://127.0.0.1:${PORT}`;

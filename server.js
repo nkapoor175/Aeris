@@ -1,10 +1,17 @@
-require('dotenv').config();
-const express = require('express');
-const sqlite3 = require('sqlite3').verbose();
-const crypto = require('crypto');
-const fs = require('fs');
-const path = require('path');
-const { predictAnemiaRisk } = require('./anemiaClassifier');
+import 'dotenv/config';
+import express from 'express';
+import sqlite3pkg from 'sqlite3';
+import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { predictAnemiaRisk } from './anemiaClassifier.js';
+
+const sqlite3 = sqlite3pkg.verbose();
+
+// ESM has no __dirname/__filename — reconstruct them from import.meta.url
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 app.use(express.json());
@@ -19,6 +26,14 @@ app.use((req, res, next) => {
   }
   next();
 });
+
+// Serve the built dashboard (npm run build -> dist/) from the same origin/port
+// as the API, so a deployed instance doesn't need CORS or a separate static host.
+// No-op if dist/ doesn't exist yet (e.g. before the first `npm run build`).
+const DIST_DIR = path.join(__dirname, 'dist');
+if (fs.existsSync(DIST_DIR)) {
+  app.use(express.static(DIST_DIR));
+}
 
 const PORT = process.env.PORT || 3000;
 const LOG_FILE = path.join(__dirname, 'app.log');
