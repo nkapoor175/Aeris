@@ -27,7 +27,7 @@ const char* server_url = "http://YOUR_SERVER_IP:3001/api/reading";
 // ⚠️  SECURITY: Replace this placeholder with the ACTUAL key from your team's .env file.
 // DO NOT commit the real key to version control.
 // The key must be exactly 32 ASCII characters (256 bits) and match AES_KEY on the server.
-const char* aes_key = "REPLACE_WITH_YOUR_32_CHAR_SECRET!";
+const char* aes_key = "REPLACE_WITH_YOUR_32_CHAR_SECRET";
 
 // --- Allowed Device ID ---
 // MUST be registered in the backend server's ALLOWED_DEVICES env list.
