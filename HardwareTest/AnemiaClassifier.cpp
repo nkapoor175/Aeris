@@ -1,11 +1,12 @@
 #include "AnemiaClassifier.h"
 #include "AnemiaDecisionTree.h"
 
-int predictAnemiaRisk(float redValue, float irValue) {
+int predictAnemiaRisk(float redValue, float irValue, int age, int genderMale) {
   // -------------------------------------------------------------------------
-  // MACHINE LEARNING MODEL LOGIC (v2 - Improved)
+  // MACHINE LEARNING MODEL LOGIC (v3 - With Demographics)
   // This uses the Decision Tree trained on the Hb PPG dataset.
-  // We feed it raw Red, IR, AND the Red/IR ratio for 97% accuracy.
+  // Features: Red, IR, Red/IR ratio, Age, Gender
+  // Accuracy: 97.56% | Severe anemia recall: 100%
   // -------------------------------------------------------------------------
   
   // Safety check: avoid division by zero if sensor gives bad data
@@ -13,15 +14,22 @@ int predictAnemiaRisk(float redValue, float irValue) {
     return RISK_HIGH; // Assume worst case on bad reading
   }
 
-  // Compute the Red/IR ratio — the most important feature (47% importance)
+  // Compute the Red/IR ratio (30% feature importance)
   // This is the mathematical basis of SpO2 estimation
   float redIR_ratio = redValue / irValue;
 
   // Instantiate the generated ML model
   Eloquent::ML::Port::AnemiaDecisionTree clf;
   
-  // Format the inputs exactly as the model expects: [Red, IR, RedIR_ratio]
-  float features[3] = { redValue, irValue, redIR_ratio };
+  // Format the inputs exactly as the model expects:
+  // [Red, IR, RedIR_ratio, Age, Gender_M]
+  float features[5] = {
+    redValue,
+    irValue,
+    redIR_ratio,
+    (float)age,
+    (float)genderMale
+  };
   
   // Predict and return the Risk Level (0: Green, 1: Yellow, 2: Red)
   return clf.predict(features);

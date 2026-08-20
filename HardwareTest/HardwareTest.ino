@@ -121,7 +121,12 @@ void loop() {
     // Finger detected, run the AI model!
     display.println("-> FINGER DETECTED");
     
-    int risk = predictAnemiaRisk((float)redValue, (float)irValue);
+    // TODO for Person 1: Replace these demo values with real inputs.
+    // Options: dashboard selection, DIP switches, or serial input.
+    int patientAge = 30;              // Demo default age
+    int patientGender = GENDER_FEMALE; // Demo default: 0=Female, 1=Male
+    
+    int risk = predictAnemiaRisk((float)redValue, (float)irValue, patientAge, patientGender);
     
     // Reset all LEDs
     digitalWrite(LED_GREEN, LOW);

@@ -13,7 +13,8 @@ ESP_OUTPUT = r"C:\Users\ADMIN\Desktop\Healthcare\HardwareTest\AnemiaDecisionTree
 
 def main():
     print("=" * 60)
-    print("HTAD-06 Anemia Detection — ML Training Pipeline v2")
+    print("HTAD-06 Anemia Detection — ML Training Pipeline v3")
+    print("Now with Age & Gender for clinical accuracy!")
     print("=" * 60)
 
     # 1. Load & Inspect
@@ -40,31 +41,35 @@ def main():
 
     df['RiskLevel'] = df['Hb'].apply(get_risk_level)
 
-    # FIX #1: Add Red/IR ratio as an engineered feature
-    # This is the mathematical core of SpO2 estimation and dramatically
-    # improves the model's ability to separate anemia classes.
+    # Feature 1: Red/IR ratio (core of SpO2 math, 30% importance)
     df['RedIR_ratio'] = df['Red'] / df['IR']
+
+    # Feature 2: Gender as binary (0 = Female, 1 = Male)
+    # Clinically important: normal Hb for females is ~12-16 g/dL,
+    # for males it's ~14-18 g/dL. Same SpO2 reading means different
+    # anemia risk depending on gender.
+    df['Gender_M'] = (df['Gender'] == 'Male').astype(int)
 
     class_counts = df['RiskLevel'].value_counts().sort_index()
     print(f"  Class distribution:")
     print(f"    LOW  (0 - Healthy):  {class_counts.get(0, 0)} samples")
     print(f"    MED  (1 - Anemic):   {class_counts.get(1, 0)} samples")
     print(f"    HIGH (2 - Severe):   {class_counts.get(2, 0)} samples")
+    print(f"  Gender: {df['Gender'].value_counts().to_dict()}")
+    print(f"  Age range: {df['Age'].min()} - {df['Age'].max()}")
 
-    # Use Red, IR, and the ratio as features (3 inputs)
-    X = df[['Red', 'IR', 'RedIR_ratio']]
+    # 5 features: Red, IR, RedIR_ratio, Age, Gender_M
+    FEATURE_NAMES = ['Red', 'IR', 'RedIR_ratio', 'Age', 'Gender_M']
+    X = df[FEATURE_NAMES]
     y = df['RiskLevel']
 
     # 3. Train Model
-    print("\n[3/5] Training Decision Tree (improved)...")
+    print("\n[3/5] Training Decision Tree (v3 with demographics)...")
 
-    # FIX #2: Stratified split to maintain class proportions in both sets
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, random_state=42, stratify=y
     )
 
-    # FIX #3: class_weight='balanced' gives equal importance to rare classes
-    # FIX #4: max_depth=7 allows slightly more complexity for 3 features
     clf = DecisionTreeClassifier(
         max_depth=7,
         class_weight='balanced',
@@ -84,7 +89,7 @@ def main():
         zero_division=0
     ))
     print(f"  Feature Importances:")
-    for name, imp in zip(['Red', 'IR', 'RedIR_ratio'], clf.feature_importances_):
+    for name, imp in zip(FEATURE_NAMES, clf.feature_importances_):
         print(f"    {name}: {imp:.3f}")
     print(f"  Tree node count: {clf.tree_.node_count}")
 
@@ -98,13 +103,14 @@ def main():
         f.write(c_code)
     print(f"  Saved to: {OUTPUT_FILE}")
 
-    # Also copy directly to HardwareTest folder
     with open(ESP_OUTPUT, "w") as f:
         f.write(c_code)
     print(f"  Copied to: {ESP_OUTPUT}")
 
     print("\n" + "=" * 60)
-    print("DONE! Model trained and exported successfully.")
+    print("DONE! v3 Model (5 features) trained and exported.")
+    print(f"Features order: {FEATURE_NAMES}")
+    print("ESP32 must pass: [Red, IR, RedIR_ratio, Age, Gender_M]")
     print("=" * 60)
 
 if __name__ == "__main__":
