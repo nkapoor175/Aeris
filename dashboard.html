@@ -71,11 +71,11 @@
       <!-- TOP PRIORITY ROW: NEW SCREENING & ACTIVE RESULT SIDE-BY-SIDE -->
       <div class="dash-hero-grid">
         
-        <!-- NEW SCREENING INPUT PANEL -->
+        <!-- PATIENT CONTEXT INPUT PANEL -->
         <div class="dash-panel dash-panel--hero-input">
           <div class="dash-panel__header">
-            <span class="dash-panel__title">NEW SCREENING INPUT</span>
-            <span class="dash-panel__sub">Demographic parameters for ML risk model</span>
+            <span class="dash-panel__title">PATIENT CONTEXT</span>
+            <span class="dash-panel__sub">Register age/gender to unlock the full server-side risk estimate</span>
           </div>
           <form id="screening-input-form" class="dash-form">
             <div class="form-row">
@@ -98,11 +98,11 @@
               </div>
             </div>
 
-            <button type="submit" class="btn-run-screening">RUN OPTICAL SCREENING →</button>
+            <button type="submit" class="btn-run-screening">SAVE PATIENT CONTEXT →</button>
           </form>
 
-          <div class="dash-input-note">
-            <span>ML Signature: <code>predictAnemiaRisk(red, ir, age, genderMale)</code></span>
+          <div class="dash-input-note" id="context-form-status">
+            <span>Endpoint: <code>POST /api/patient-context</code> — applies to this patient's future readings, not existing ones.</span>
           </div>
         </div>
 
@@ -267,10 +267,7 @@
         <div class="patient-selector-wrap">
           <label for="patient-select" class="patient-select-label">SELECT PATIENT:</label>
           <select id="patient-select" class="patient-select-dropdown">
-            <option value="PT-0042">Patient PT-0042 (Female, 32 yrs)</option>
-            <option value="PT-0089">Patient PT-0089 (Male, 48 yrs)</option>
-            <option value="PT-0104">Patient PT-0104 (Female, 64 yrs)</option>
-            <option value="PT-0036">Patient PT-0036 (Male, 26 yrs)</option>
+            <option value="">Loading patients…</option>
           </select>
         </div>
       </div>
@@ -334,19 +331,19 @@
           <div class="dash-device-list" id="full-device-status-list"></div>
         </div>
 
-        <!-- OFFLINE QUEUE MANAGEMENT -->
+        <!-- OFFLINE QUEUE MANAGEMENT (UI SIMULATION ONLY) -->
         <div class="dash-panel">
           <div class="dash-panel__header">
             <span class="dash-panel__title">OFFLINE QUEUE &amp; SYNC</span>
-            <span class="dash-badge" id="offline-queue-badge">3 READINGS QUEUED</span>
+            <span class="dash-badge" id="offline-queue-badge">0 READINGS QUEUED</span>
           </div>
           <div class="dash-queue-box">
             <div class="queue-status-text" id="queue-status-text">
               OFFLINE QUEUE<br />
-              <strong id="queue-count-display">3 readings waiting to sync</strong>
+              <strong id="queue-count-display">0 readings — fully synced</strong>
             </div>
             <p class="queue-desc">
-              Designed for community health environments with intermittent connectivity. Readings are stored locally in non-volatile memory until connection is re-established.
+              Designed for community health environments with intermittent connectivity. <strong>UI simulation only</strong> — the firmware doesn't implement a local retry-queue yet, so this panel demonstrates the intended UX rather than reflecting a real device.
             </p>
             <div class="queue-actions">
               <button type="button" class="btn-dash-action" id="btn-toggle-offline">Simulate Offline Mode</button>
