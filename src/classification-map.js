@@ -7,30 +7,34 @@
 // from the real API, never computed here.
 // ============================================================
 
+// Labels intentionally spell out "Malnutrition"/"Nutritional Deficiency"
+// alongside "Anemia" for the pitch: anemia (low hemoglobin) is presented
+// as the measurable biomarker of nutritional deficiency, not a separate
+// condition — see the "How to link Anemia to Malnutrition" pitch note.
 export const CLASSIFICATION_MAP = {
   0: {
     code: 0,
-    label: 'HEALTHY',
+    label: 'NORMAL HEMOGLOBIN LEVELS',
     color: '#4A9B6E',
     bgColor: 'rgba(74, 155, 110, 0.15)',
     action: 'No immediate referral indicated',
-    oledText: 'HEALTHY',
+    oledText: 'NORMAL Hb',
   },
   1: {
     code: 1,
-    label: 'MILD / MODERATE',
+    label: 'MILD ANEMIA / MALNUTRITION WARNING',
     color: '#D6B84C',
     bgColor: 'rgba(214, 184, 76, 0.15)',
     action: '→ Refer for confirmatory blood test',
-    oledText: 'MILD/MOD ANEMIA',
+    oledText: 'MILD ANEMIA/MALNUTR',
   },
   2: {
     code: 2,
-    label: 'SEVERE',
+    label: 'SEVERE ANEMIA / NUTRITIONAL DEFICIENCY',
     color: '#B93B3B',
     bgColor: 'rgba(185, 59, 59, 0.15)',
     action: '→ Priority referral / confirmatory testing',
-    oledText: 'SEVERE ANEMIA',
+    oledText: 'SEVERE ANEMIA/DEFICIT',
   },
 };
 
