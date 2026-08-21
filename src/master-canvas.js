@@ -1,35 +1,39 @@
 // ============================================================
-// AERIS — Master Cinematic Editorial Render Engine
-// Single unified Canvas engine managing the 5 narrative sections:
-//   Section 01: The Problem (Clinical Photo Camera Push-In -> Dissolve)
-//   Section 02: Enter the Bloodstream (Realistic Fluid RBC Flow across Viewport)
-//   Section 03: Non-Invasive Measurement (Optical Sensing Light Pulse at Fingertip)
-//   Section 04: Signal to Insight (Conceptual Pipeline: Optical -> Features -> Risk)
-//   Section 05: Accessibility / Final Transformation to Screening Console
+// AERIS — Scientific Product Film Master Canvas Engine
+// Renders the single continuous camera journey:
+// Scene 1: Hero Desaturated Photograph + Parallax
+// Scene 2: Camera pushes INTO image → transitions into biological lumen
+// Scene 3: Realistic 3D Human Red Blood Cells (Biconcave disc, central dimple)
+// Scene 4: Restrained Dual-Wavelength Optical Interaction (660nm & 880nm)
+// Scene 5: RBC Motion transforms into clean PPG Waveform Signals
+// Scene 6: Signal resolves into AI Classification Codes & AERIS Console CTA
 // ============================================================
 
 export class MasterCanvas {
   constructor(canvasEl) {
     this.canvas = canvasEl;
     this.ctx = canvasEl.getContext('2d');
-    this.progress = 0;
+    this.targetProgress = 0;
+    this.currentProgress = 0;
     this.animationId = null;
-    this.dpr = Math.min(window.devicePixelRatio || 1, 2);
+    this.dpr = typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 2) : 1;
     this.time = 0;
 
-    this.reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    this.isMobile = window.innerWidth < 768;
+    this.reducedMotion = typeof window !== 'undefined' ? window.matchMedia('(prefers-reduced-motion: reduce)').matches : false;
+    this.isMobile = typeof window !== 'undefined' ? window.innerWidth < 768 : false;
 
-    // Load High-Resolution Biomedical Assets
+    // Mouse tracking for hero parallax
+    this.mouse = { x: 0, y: 0, normX: 0, normY: 0 };
+
+    // Hero image loading
     this.heroImg = new Image();
     this.heroImgLoaded = false;
     this.heroImg.src = '/images/blood-draw.png';
     this.heroImg.onload = () => { this.heroImgLoaded = true; };
 
-    this.rbcImg = new Image();
-    this.rbcImgLoaded = false;
-    this.rbcImg.src = '/images/rbc-figure.png';
-    this.rbcImg.onload = () => { this.rbcImgLoaded = true; };
+    // Initialize 3D Realistic Human RBC Cells
+    this.cells = [];
+    this.createRealisticRBCs();
 
     this.resize();
     this.bindEvents();
@@ -47,28 +51,88 @@ export class MasterCanvas {
     this.canvas.style.height = `${this.height}px`;
     this.ctx.setTransform(1, 0, 0, 1, 0, 0);
     this.ctx.scale(this.dpr, this.dpr);
+
+    this.fov = Math.min(this.width, this.height) * 0.85;
+  }
+
+  // Create high-quality, biologically realistic human erythrocytes
+  createRealisticRBCs() {
+    this.cells = [];
+    const count = this.isMobile ? 18 : 32; // Smaller count of HIGH QUALITY cells
+    const tunnelRadius = Math.min(this.width || 1000, this.height || 700) * 0.75;
+
+    // Biological erythrocyte color tones (ONLY real reds & shadowed burgundy, NO yellow!)
+    const rbcPalette = [
+      { r: 180, g: 30, b: 30, dim: '#3a0505', rim: 'rgba(255, 190, 190, 0.35)' }, // Oxygenated red
+      { r: 145, g: 22, b: 22, dim: '#2c0404', rim: 'rgba(230, 160, 160, 0.25)' }, // Deoxygenated venous red
+      { r: 120, g: 16, b: 16, dim: '#200303', rim: 'rgba(200, 140, 140, 0.20)' }, // Deep shadowed red
+    ];
+
+    for (let i = 0; i < count; i++) {
+      const color = rbcPalette[i % rbcPalette.length];
+      const angle = Math.random() * Math.PI * 2;
+      const radius = Math.sqrt(Math.random()) * tunnelRadius * 0.9 + 30;
+
+      this.cells.push({
+        id: i,
+        // 3D coordinates in camera space
+        worldX: Math.cos(angle) * radius,
+        worldY: Math.sin(angle) * radius,
+        worldZ: Math.random() * 2200 - 300,
+        currentX: 0,
+        currentY: 0,
+        currentZ: 0,
+
+        baseRadius: 36 + Math.random() * 28,
+        aspectRatio: 0.52 + Math.random() * 0.25, // Biconcave squish
+
+        // 3D Rotations
+        rotZ: Math.random() * Math.PI * 2,
+        rotSpeed: (Math.random() - 0.5) * 0.01,
+        speedZ: 2.5 + Math.random() * 3.5,
+        wobbleFreq: 0.008 + Math.random() * 0.015,
+        wobblePhase: Math.random() * Math.PI * 2,
+
+        // Morph target mapping
+        waveTargetX: (i / count),
+        opacity: 0.4 + Math.random() * 0.5,
+        color,
+      });
+    }
   }
 
   bindEvents() {
     let resizeTimeout;
     window.addEventListener('resize', () => {
       clearTimeout(resizeTimeout);
-      resizeTimeout = setTimeout(() => {
-        this.isMobile = window.innerWidth < 768;
-        this.resize();
-      }, 200);
+      resizeTimeout = setTimeout(() => this.resize(), 200);
     });
+
+    window.addEventListener('pointermove', (e) => {
+      if (!this.canvas) return;
+      const rect = this.canvas.getBoundingClientRect();
+      this.mouse.normX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      this.mouse.normY = ((e.clientY - rect.top) / rect.height) * 2 - 1;
+    }, { passive: true });
   }
 
   setProgress(p) {
-    this.progress = Math.max(0, Math.min(1, p));
+    this.targetProgress = Math.max(0, Math.min(1, p));
   }
 
-  // Representative PPG Waveform Function for Section 04
+  smoothstep(edge0, edge1, x) {
+    const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
+    return t * t * (3 - 2 * t);
+  }
+
+  lerp(a, b, t) {
+    return a + (b - a) * t;
+  }
+
+  // PPG Waveform math
   getPPGValue(xNorm, tOffset = 0) {
     const period = 0.32;
     const phase = (xNorm / period + tOffset) % 1.0;
-
     let y = 0;
     if (phase < 0.25) {
       y = Math.sin((phase / 0.25) * Math.PI);
@@ -84,105 +148,145 @@ export class MasterCanvas {
     return Math.max(-0.2, y);
   }
 
-  render() {
+  // Physics update loop
+  updateRBCs(p) {
+    if (this.reducedMotion) return;
+    const cameraSpeed = 1.0 + Math.pow(Math.min(1, p * 2.5), 1.5) * 5.5;
+    const morphToWave = p >= 0.54 ? Math.min(1, (p - 0.54) / 0.18) : 0;
+
+    const w = this.width;
+    const h = this.height;
+
+    for (const cell of this.cells) {
+      cell.rotZ += cell.rotSpeed;
+      cell.wobblePhase += cell.wobbleFreq;
+
+      // Z camera motion
+      cell.worldZ -= cell.speedZ * cameraSpeed;
+      if (cell.worldZ < -300) {
+        cell.worldZ += 2200;
+        const angle = Math.random() * Math.PI * 2;
+        const tunnelRadius = Math.min(w, h) * 0.75;
+        const radius = Math.sqrt(Math.random()) * tunnelRadius * 0.9 + 30;
+        cell.worldX = Math.cos(angle) * radius;
+        cell.worldY = Math.sin(angle) * radius;
+      }
+
+      let tx = cell.worldX + Math.sin(cell.wobblePhase) * 12;
+      let ty = cell.worldY + Math.cos(cell.wobblePhase) * 12;
+      let tz = cell.worldZ;
+
+      // Transform cell positions into Waveform vertices as progress enters signal phase
+      if (morphToWave > 0) {
+        const xNorm = cell.waveTargetX;
+        const val = this.getPPGValue(xNorm, this.time * 0.04);
+        const targetScreenX = (xNorm - 0.5) * w * 0.85;
+        const targetScreenY = -val * (h * 0.14);
+
+        tx = this.lerp(tx, targetScreenX, morphToWave);
+        ty = this.lerp(ty, targetScreenY, morphToWave);
+        tz = this.lerp(tz, 450, morphToWave);
+      }
+
+      cell.currentX = tx;
+      cell.currentY = ty;
+      cell.currentZ = tz;
+    }
+  }
+
+  // Animation Loop
+  animate() {
+    this.time += 0.016;
+
+    // Smooth inertia interpolation
+    const lerpSpeed = this.reducedMotion ? 1.0 : 0.085;
+    this.currentProgress += (this.targetProgress - this.currentProgress) * lerpSpeed;
+    const p = this.currentProgress;
+
+    this.updateRBCs(p);
+    this.render(p);
+
+    this.animationId = requestAnimationFrame(() => this.animate());
+  }
+
+  render(p) {
     const ctx = this.ctx;
     const w = this.width;
     const h = this.height;
-    const p = this.progress;
-    this.time += 0.016;
 
     ctx.clearRect(0, 0, w, h);
 
-    // Deep dark background color interpolation
+    // ── 1. BACKGROUND COLOR INTERPOLATION ──
+    // Deep black -> Dark microvascular red background -> Black -> Subtle gold ambient
     let bgR = 5, bgG = 5, bgB = 5;
-    if (p > 0.15 && p < 0.45) {
-      // Deep biological lumen lighting for Bloodstream (Section 02)
-      const bloodT = Math.sin(((p - 0.15) / 0.30) * Math.PI);
-      bgR = Math.round(5 + bloodT * 32);
-      bgG = Math.round(5 + bloodT * 4);
-      bgB = Math.round(5 + bloodT * 6);
-    } else if (p > 0.60 && p < 0.85) {
-      // Subtle gold hue for Signal to Insight (Section 04)
-      const sigT = Math.sin(((p - 0.60) / 0.25) * Math.PI);
-      bgR = Math.round(5 + sigT * 18);
-      bgG = Math.round(5 + sigT * 12);
-      bgB = Math.round(5 + sigT * 4);
-    }
+
+    const bloodT = this.smoothstep(0.15, 0.26, p) * (1 - this.smoothstep(0.48, 0.56, p));
+    bgR = Math.round(5 + bloodT * 26);
+    bgG = Math.round(5 + bloodT * 3);
+    bgB = Math.round(5 + bloodT * 4);
 
     const bgGrad = ctx.createRadialGradient(w / 2, h / 2, w * 0.05, w / 2, h / 2, w * 0.85);
-    bgGrad.addColorStop(0, `rgb(${Math.min(255, bgR + 18)}, ${Math.min(255, bgG + 10)}, ${Math.min(255, bgB + 8)})`);
+    bgGrad.addColorStop(0, `rgb(${bgR + 12}, ${bgG + 6}, ${bgB + 4})`);
     bgGrad.addColorStop(1, `rgb(${bgR}, ${bgG}, ${bgB})`);
     ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, w, h);
 
-    // ============================================================
-    // SECTION 01 — THE PROBLEM: Hero Clinical Photo Push-In (P: 0.00 -> 0.18)
-    // ============================================================
-    if (p < 0.18 && this.heroImgLoaded) {
-      this.drawHeroClinicalPhoto(ctx, w, h, p);
+    // ── 2. SCENE 1 & 2: HERO PHOTOGRAPH & CAMERA ZOOM INTO IMAGE (P: 0.00 -> 0.28) ──
+    const heroAlpha = 1 - this.smoothstep(0.16, 0.26, p);
+    if (heroAlpha > 0.001 && this.heroImgLoaded) {
+      this.drawHeroPhotograph(ctx, w, h, p, heroAlpha);
     }
 
-    // ============================================================
-    // SECTION 02 — ENTER THE BLOODSTREAM: Realistic Fluid RBC Flow (P: 0.15 -> 0.48)
-    // ============================================================
-    if (p > 0.15 && p < 0.48 && this.rbcImgLoaded) {
-      this.drawFluidRBCStream(ctx, w, h, p);
+    // ── 3. SCENE 3: REALISTIC HUMAN RED BLOOD CELLS (P: 0.20 -> 0.65) ──
+    const rbcAlpha = this.smoothstep(0.20, 0.28, p) * (1 - this.smoothstep(0.58, 0.65, p));
+    if (rbcAlpha > 0.001) {
+      this.drawRealisticRBCs(ctx, w, h, p, rbcAlpha);
     }
 
-    // ============================================================
-    // SECTION 03 — NON-INVASIVE MEASUREMENT: Optical Sensing Light Pulse (P: 0.45 -> 0.65)
-    // ============================================================
-    if (p > 0.45 && p < 0.65) {
-      this.drawOpticalMeasurementPulse(ctx, w, h, p);
+    // ── 4. SCENE 4: RESTRAINED DUAL-WAVELENGTH OPTICAL LIGHT BEAM (P: 0.44 -> 0.62) ──
+    const beamAlpha = this.smoothstep(0.44, 0.50, p) * (1 - this.smoothstep(0.58, 0.62, p));
+    if (beamAlpha > 0.001) {
+      this.drawOpticalBeam(ctx, w, h, p, beamAlpha);
     }
 
-    // ============================================================
-    // SECTION 04 — SIGNAL TO INSIGHT: Conceptual Pipeline (P: 0.62 -> 0.84)
-    // ============================================================
-    if (p > 0.62 && p < 0.84) {
-      this.drawSignalToInsightPipeline(ctx, w, h, p);
+    // ── 5. SCENE 5: WAVEFORM SIGNAL TRACES (P: 0.58 -> 0.84) ──
+    const waveAlpha = this.smoothstep(0.58, 0.64, p) * (1 - this.smoothstep(0.80, 0.84, p));
+    if (waveAlpha > 0.001) {
+      this.drawWaveformSignals(ctx, w, h, p, waveAlpha);
     }
 
-    // ============================================================
-    // SECTION 05 — ACCESSIBILITY: Interface Wireframe Matrix (P: 0.82 -> 1.00)
-    // ============================================================
-    if (p > 0.82) {
-      this.drawAccessibilityMatrix(ctx, w, h, p);
-    }
-
-    // Atmospheric Vignette Edge Darkening
+    // ── 6. ATMOSPHERIC VIGNETTE & CRISP SCANLINE ──
     const vig = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.38, w / 2, h / 2, Math.max(w, h) * 0.82);
     vig.addColorStop(0, 'rgba(0,0,0,0)');
-    vig.addColorStop(1, 'rgba(3,2,2,0.85)');
+    vig.addColorStop(1, 'rgba(3,2,2,0.92)');
     ctx.fillStyle = vig;
     ctx.fillRect(0, 0, w, h);
   }
 
-  // SECTION 01: HERO CLINICAL PHOTO PUSH-IN
-  drawHeroClinicalPhoto(ctx, w, h, p) {
-    const normP = p / 0.18; // 0 to 1
-    
-    // Scale: 1.0 -> 1.25
-    const scale = 1.0 + Math.pow(normP, 1.8) * 0.25;
-    // Opacity reaches 0.0 at P = 0.18
-    const opacity = Math.max(0, 1.0 - Math.pow(normP, 2.0));
-    const blurAmount = normP * 14;
-
-    if (opacity <= 0.001) return;
+  // Renders Scene 1 & 2: Hero Photograph & Camera Push INTO Tissue Depth
+  drawHeroPhotograph(ctx, w, h, p, alpha) {
+    const normP = Math.min(1, p / 0.22);
+    // Camera zoom push-in
+    const scale = 1.0 + Math.pow(normP, 1.6) * 0.45;
+    const blurAmount = normP * 18;
+    const brightness = Math.max(12, 85 - normP * 72);
 
     ctx.save();
-    ctx.globalAlpha = opacity;
+    ctx.globalAlpha = alpha;
 
-    if (blurAmount > 1.2 && ctx.filter !== undefined) {
-      ctx.filter = `grayscale(100%) contrast(140%) brightness(${80 - normP * 65}%) blur(${blurAmount.toFixed(1)}px)`;
+    if (blurAmount > 0.8 && ctx.filter !== undefined) {
+      ctx.filter = `grayscale(100%) contrast(140%) brightness(${brightness}%) blur(${blurAmount.toFixed(1)}px)`;
     } else {
-      ctx.filter = 'grayscale(100%) contrast(140%)';
+      ctx.filter = `grayscale(100%) contrast(140%) brightness(${brightness}%)`;
     }
+
+    // Subtle pointer parallax displacement
+    const px = this.mouse.normX * 16;
+    const py = this.mouse.normY * 16;
 
     const imgAspect = this.heroImg.width / this.heroImg.height;
     const screenAspect = w / h;
     let drawW, drawH;
-
     if (screenAspect > imgAspect) {
       drawW = w * scale;
       drawH = (w / imgAspect) * scale;
@@ -191,15 +295,15 @@ export class MasterCanvas {
       drawW = (h * imgAspect) * scale;
     }
 
-    const imgX = (w - drawW) / 2;
-    const imgY = (h - drawH) / 2;
+    const imgX = (w - drawW) / 2 + px;
+    const imgY = (h - drawH) / 2 + py;
 
     ctx.drawImage(this.heroImg, imgX, imgY, drawW, drawH);
 
-    // Deep red tissue desaturation overlay as camera enters skin
-    if (normP > 0.25) {
-      const redTint = (normP - 0.25) / 0.75;
-      ctx.fillStyle = `rgba(110, 18, 18, ${redTint * 0.85})`;
+    // Microvascular tissue desaturation tint as camera moves under the skin
+    if (normP > 0.2) {
+      const tissueTint = (normP - 0.2) / 0.8;
+      ctx.fillStyle = `rgba(75, 10, 10, ${tissueTint * 0.85})`;
       ctx.fillRect(0, 0, w, h);
     }
 
@@ -207,212 +311,174 @@ export class MasterCanvas {
     ctx.filter = 'none';
   }
 
-  // SECTION 02: REALISTIC FLUID RBC STREAM ACROSS VIEWPORT
-  drawFluidRBCStream(ctx, w, h, p) {
-    // RBC Fade In: starts at P = 0.15 (after photo dissolves), fully visible by P = 0.20
-    const rbcAlphaIn = p < 0.20 ? (p - 0.15) / 0.05 : 1.0;
-    // RBC Settle & Dissolve into darkness toward P = 0.42 -> 0.48
-    const rbcAlphaOut = p > 0.42 ? 1.0 - (p - 0.42) / 0.06 : 1.0;
-    const rbcAlpha = Math.max(0, Math.min(1, rbcAlphaIn * rbcAlphaOut));
-
-    if (rbcAlpha <= 0.001) return;
-
-    const streamProgress = (p - 0.15) / 0.30; // 0 to 1
-
+  // Renders Scene 3: Biologically Realistic Human Erythrocytes (3D Biconcave Discs)
+  drawRealisticRBCs(ctx, w, h, p, alpha) {
     ctx.save();
-    ctx.globalAlpha = rbcAlpha;
+    ctx.globalAlpha = alpha;
 
-    const imgAspect = this.rbcImg.width / this.rbcImg.height;
+    // Z-Sort for painter's depth algorithm
+    this.cells.sort((a, b) => b.currentZ - a.currentZ);
 
-    // Multi-plane camera pan & fluid organic curved trajectory across viewport
-    // Layer 1: Background Deep Vessel Layer (Soft blur, subtle motion)
-    ctx.save();
-    ctx.globalAlpha = rbcAlpha * 0.40;
-    if (ctx.filter !== undefined) ctx.filter = 'blur(5px) brightness(60%)';
-
-    const scale1 = 1.35 + streamProgress * 0.25;
-    const drawW1 = w * scale1;
-    const drawH1 = (w / imgAspect) * scale1;
-    // Flow enters from left, moves along curved trajectory to right
-    const x1 = (w - drawW1) / 2 - (streamProgress - 0.5) * (w * 0.30);
-    const y1 = (h - drawH1) / 2 + Math.sin(streamProgress * Math.PI) * 45;
-
-    ctx.drawImage(this.rbcImg, x1, y1, drawW1, drawH1);
-    ctx.restore();
-
-    // Layer 2: Main Focal Stream Layer (Sharp realistic biological RBCs)
-    ctx.save();
-    ctx.globalAlpha = rbcAlpha * 0.90;
-    if (ctx.filter !== undefined) ctx.filter = 'contrast(130%) brightness(95%)';
-
-    const scale2 = 1.2 + streamProgress * 0.30;
-    const drawW2 = w * scale2;
-    const drawH2 = (w / imgAspect) * scale2;
-    const x2 = (w - drawW2) / 2 - (streamProgress - 0.5) * (w * 0.45);
-    const y2 = (h - drawH2) / 2 + Math.cos(streamProgress * Math.PI * 1.1) * 35;
-
-    ctx.drawImage(this.rbcImg, x2, y2, drawW2, drawH2);
-    ctx.restore();
-
-    // Layer 3: Foreground Near Plane Layer (Near cells passing close to camera)
-    ctx.save();
-    ctx.globalAlpha = rbcAlpha * 0.35;
-    if (ctx.filter !== undefined) ctx.filter = 'blur(8px) brightness(110%)';
-
-    const scale3 = 1.6 + streamProgress * 0.45;
-    const drawW3 = w * scale3;
-    const drawH3 = (w / imgAspect) * scale3;
-    const x3 = (w - drawW3) / 2 - (streamProgress - 0.3) * (w * 0.55);
-    const y3 = (h - drawH3) / 2 - (streamProgress - 0.2) * (h * 0.20);
-
-    ctx.drawImage(this.rbcImg, x3, y3, drawW3, drawH3);
-    ctx.restore();
-
-    ctx.restore();
-    ctx.filter = 'none';
-  }
-
-  // SECTION 03: NON-INVASIVE MEASUREMENT OPTICAL LIGHT PULSE
-  drawOpticalMeasurementPulse(ctx, w, h, p) {
-    const pulseT = (p - 0.45) / 0.20; // 0 to 1
     const centerX = w / 2;
     const centerY = h / 2;
+    const fov = this.fov || 800;
+    const morphFactor = p >= 0.54 ? Math.min(1, (p - 0.54) / 0.18) : 0;
 
-    const sparkAlpha = Math.sin(Math.min(1, pulseT) * Math.PI);
+    for (const cell of this.cells) {
+      const z = cell.currentZ;
+      if (z <= 10) continue;
 
-    if (sparkAlpha > 0.01) {
+      const scale = fov / z;
+      const projX = centerX + cell.currentX * (morphFactor > 0.5 ? 1 : scale);
+      const projY = centerY + cell.currentY * (morphFactor > 0.5 ? 1 : scale);
+
+      if (projX < -150 || projX > w + 150 || projY < -150 || projY > h + 150) continue;
+
+      const radius = cell.baseRadius * scale;
+      if (radius < 1.2) continue;
+
+      // Depth of field blur & atmospheric fog
+      const focusDist = Math.abs(z - 450);
+      const dofBlur = Math.min(7, focusDist / 190) * (1 - morphFactor);
+      const fogFactor = Math.max(0, Math.min(1, 1 - (z - 200) / 1800));
+      const opacity = cell.opacity * fogFactor;
+
+      if (opacity <= 0.01) continue;
+
       ctx.save();
-      ctx.globalAlpha = sparkAlpha * 0.85;
+      ctx.translate(projX, projY);
+      ctx.rotate(cell.rotZ);
+      ctx.scale(1, cell.aspectRatio);
+      ctx.globalAlpha = opacity;
 
-      const radius = Math.sin(pulseT * Math.PI) * (w * 0.35) + 30;
-      const grad = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
-      grad.addColorStop(0, '#FFFFFF');
-      grad.addColorStop(0.25, '#D6B84C');
-      grad.addColorStop(0.6, 'rgba(214, 184, 76, 0.25)');
-      grad.addColorStop(1, 'rgba(214, 184, 76, 0)');
+      if (dofBlur > 1.4 && ctx.filter !== undefined) {
+        ctx.filter = `blur(${dofBlur.toFixed(1)}px)`;
+      }
 
+      // Volumetric Biconcave Disc Gradient (REALISTIC BIOLOGICAL RED ONLY!)
+      const hlX = -radius * 0.25;
+      const hlY = -radius * 0.25;
+      const grad = ctx.createRadialGradient(hlX, hlY, radius * 0.08, 0, 0, radius);
+      grad.addColorStop(0, `rgb(${Math.min(255, cell.color.r + 75)}, ${Math.min(255, cell.color.g + 45)}, ${Math.min(255, cell.color.b + 45)})`);
+      grad.addColorStop(0.55, `rgb(${cell.color.r}, ${cell.color.g}, ${cell.color.b})`);
+      grad.addColorStop(0.85, `rgb(${Math.max(0, cell.color.r - 40)}, ${Math.max(0, cell.color.g - 18)}, ${Math.max(0, cell.color.b - 18)})`);
+      grad.addColorStop(1, cell.color.dim);
+
+      // Outer Erythrocyte Disc
       ctx.beginPath();
-      ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+      ctx.arc(0, 0, radius, 0, Math.PI * 2);
       ctx.fillStyle = grad;
       ctx.fill();
 
-      // Dual optical wavelength pulse rings (660nm Red / 880nm IR)
+      // Central Biconcave Indentation (Dimple Depression)
+      const dimpleR = radius * 0.48;
+      const dimpleGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, dimpleR);
+      dimpleGrad.addColorStop(0, `rgba(${Math.min(255, cell.color.r + 85)}, ${Math.min(255, cell.color.g + 45)}, ${Math.min(255, cell.color.b + 45)}, 0.6)`);
+      dimpleGrad.addColorStop(0.7, `rgba(${cell.color.r}, ${cell.color.g}, ${cell.color.b}, 0.15)`);
+      dimpleGrad.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.beginPath();
-      ctx.arc(centerX, centerY, radius * 0.85, 0, Math.PI * 2);
-      ctx.strokeStyle = `rgba(214, 184, 76, ${0.5 * (1 - pulseT)})`;
-      ctx.lineWidth = 2;
-      ctx.stroke();
+      ctx.arc(0, 0, dimpleR, 0, Math.PI * 2);
+      ctx.fillStyle = dimpleGrad;
+      ctx.fill();
 
+      // Specular Rim Reflection Highlight
       ctx.beginPath();
-      ctx.arc(centerX, centerY, radius * 0.65, 0, Math.PI * 2);
-      ctx.strokeStyle = `rgba(139, 45, 45, ${0.4 * (1 - pulseT)})`;
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
+      ctx.arc(-radius * 0.28, -radius * 0.28, radius * 0.22, 0, Math.PI * 2);
+      ctx.fillStyle = cell.color.rim;
+      ctx.fill();
 
       ctx.restore();
+      ctx.filter = 'none';
     }
+
+    ctx.restore();
   }
 
-  // SECTION 04: SIGNAL TO INSIGHT CONCEPTUAL PIPELINE
-  drawSignalToInsightPipeline(ctx, w, h, p) {
-    const pipeT = (p - 0.62) / 0.22; // 0 to 1
-    const pipeAlpha = Math.min(1, pipeT * 2.5) * (p > 0.80 ? 1 - (p - 0.80) / 0.04 : 1);
-    const centerY = h * 0.52;
-    const amplitude = h * 0.14;
-    const drawX = w * Math.min(1, pipeT * 1.3);
+  // Renders Scene 4: Restrained Dual-Wavelength Optical Laser Beam Interaction
+  drawOpticalBeam(ctx, w, h, p, alpha) {
+    const centerY = h * 0.5;
 
     ctx.save();
-    ctx.globalAlpha = pipeAlpha;
+    ctx.globalAlpha = alpha;
 
-    // Subtle optical signal waveform trace
+    // Restrained 660nm Red Laser Beam Line
+    ctx.beginPath();
+    ctx.moveTo(0, centerY - 15);
+    ctx.lineTo(w, centerY - 15);
+    ctx.strokeStyle = 'rgba(185, 32, 32, 0.45)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Restrained 880nm IR Laser Beam Line (Warm Gold)
+    ctx.beginPath();
+    ctx.moveTo(0, centerY + 15);
+    ctx.lineTo(w, centerY + 15);
+    ctx.strokeStyle = 'rgba(200, 168, 70, 0.45)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Subtle Focal Beam Glow Pass
+    const beamGlow = ctx.createLinearGradient(0, centerY - 30, 0, centerY + 30);
+    beamGlow.addColorStop(0, 'rgba(185, 32, 32, 0)');
+    beamGlow.addColorStop(0.5, 'rgba(200, 168, 70, 0.08)');
+    beamGlow.addColorStop(1, 'rgba(185, 32, 32, 0)');
+    ctx.fillStyle = beamGlow;
+    ctx.fillRect(0, centerY - 35, w, 70);
+
+    ctx.restore();
+  }
+
+  // Renders Scene 5: Clean PPG Waveform Signal Traces
+  drawWaveformSignals(ctx, w, h, p, alpha) {
+    const waveT = (p - 0.58) / 0.24; // 0 to 1
+    const drawProgress = Math.min(1, waveT * 1.35);
+    const centerY = h * 0.5;
+    const amplitude = h * 0.14;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+
+    // Primary 660nm Waveform Trace (Warm AERIS Gold)
+    this.drawPPGLine(ctx, w, centerY, amplitude, drawProgress, '#C8A846', 2.2, 0, 'rgba(200, 168, 70, 0.06)');
+
+    // Secondary 880nm IR Waveform Trace (Subtle Red)
+    if (waveT > 0.15) {
+      this.drawPPGLine(ctx, w, centerY + 20, amplitude * 0.8, drawProgress, '#8B1E1E', 1.6, -0.04, 'rgba(139, 30, 30, 0.05)');
+    }
+
+    ctx.restore();
+  }
+
+  drawPPGLine(ctx, w, centerY, amplitude, drawProgress, color, lineWidth, tShift, fillColor) {
+    const maxDrawX = w * drawProgress;
+    if (maxDrawX <= 0) return;
+
     ctx.beginPath();
     let first = true;
-    for (let x = 0; x <= drawX; x += 3) {
+    const step = 2;
+
+    for (let x = 0; x <= maxDrawX; x += step) {
       const xNorm = x / w;
-      const val = this.getPPGValue(xNorm, this.time * 0.04);
+      const val = this.getPPGValue(xNorm, this.time * 0.04 + tShift);
       const y = centerY - val * amplitude;
-      if (first) { ctx.moveTo(x, y); first = false; } else { ctx.lineTo(x, y); }
+      if (first) { ctx.moveTo(x, y); first = false; }
+      else { ctx.lineTo(x, y); }
     }
-    ctx.strokeStyle = 'rgba(214, 184, 76, 0.75)';
-    ctx.lineWidth = 2;
-    ctx.shadowColor = '#D6B84C';
-    ctx.shadowBlur = 10;
+
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lineWidth;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 8;
     ctx.stroke();
     ctx.shadowBlur = 0;
 
-    // Secondary infrared absorption signal trace
-    if (pipeT > 0.3) {
-      const irT = (pipeT - 0.3) / 0.7;
-      const irDrawX = w * Math.min(1, irT * 1.3);
-
-      ctx.beginPath();
-      first = true;
-      for (let x = 0; x <= irDrawX; x += 3) {
-        const xNorm = x / w;
-        const val = this.getPPGValue(xNorm, this.time * 0.04 - 0.05);
-        const y = centerY + 24 - val * (amplitude * 0.8);
-        if (first) { ctx.moveTo(x, y); first = false; } else { ctx.lineTo(x, y); }
-      }
-      ctx.strokeStyle = 'rgba(139, 45, 45, 0.6)';
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
+    if (fillColor && maxDrawX > 0) {
+      ctx.lineTo(maxDrawX, centerY + amplitude * 0.45);
+      ctx.lineTo(0, centerY + amplitude * 0.45);
+      ctx.closePath();
+      ctx.fillStyle = fillColor;
+      ctx.fill();
     }
-
-    ctx.restore();
-  }
-
-  // SECTION 05: ACCESSIBILITY MATRIX TRANSFORMATION
-  drawAccessibilityMatrix(ctx, w, h, p) {
-    const gridT = (p - 0.82) / 0.18; // 0 to 1
-    const gridAlpha = Math.min(1, gridT * 2.5);
-
-    ctx.save();
-    ctx.globalAlpha = gridAlpha;
-
-    const cols = 8;
-    const rows = 5;
-    const cellW = w / cols;
-    const cellH = h / rows;
-
-    ctx.strokeStyle = `rgba(214, 184, 76, ${0.12 * gridT})`;
-    ctx.lineWidth = 1;
-
-    for (let c = 0; c <= cols; c++) {
-      const x = c * cellW;
-      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
-    }
-    for (let r = 0; r <= rows; r++) {
-      const y = r * cellH;
-      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
-    }
-
-    // Outer wireframe panel frame
-    if (gridT > 0.4) {
-      const panelAlpha = (gridT - 0.4) * 1.66;
-      ctx.strokeStyle = `rgba(74, 155, 110, ${0.35 * panelAlpha})`;
-      ctx.lineWidth = 1.5;
-
-      const pX = w * 0.15;
-      const pY = h * 0.18;
-      const pW = w * 0.7;
-      const pH = h * 0.64;
-
-      ctx.strokeRect(pX, pY, pW, pH);
-
-      const tick = 14;
-      ctx.strokeStyle = '#D6B84C';
-      ctx.beginPath(); ctx.moveTo(pX, pY + tick); ctx.lineTo(pX, pY); ctx.lineTo(pX + tick, pY); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(pX + pW - tick, pY); ctx.lineTo(pX + pW, pY); ctx.lineTo(pX + pW, pY + tick); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(pX, pY + pH - tick); ctx.lineTo(pX, pY + pH); ctx.lineTo(pX + tick, pY + pH); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(pX + pW - tick, pY + pH); ctx.lineTo(pX + pW, pY + pH); ctx.lineTo(pX + pW, pY + pH - tick); ctx.stroke();
-    }
-
-    ctx.restore();
-  }
-
-  animate() {
-    this.render();
-    this.animationId = requestAnimationFrame(() => this.animate());
   }
 
   destroy() {
