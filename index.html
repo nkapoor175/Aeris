@@ -4,140 +4,20 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AERIS — Non-Invasive Optical Anemia Risk Screening</title>
+  <title>AERIS — Non-Invasive Anemia Risk Screening</title>
   <meta name="description"
-    content="AERIS is a portable non-invasive optical screening platform for early anemia risk estimation." />
-
-  <!-- GOOGLE FONTS: Inter (Sans-serif) & JetBrains Mono (Technical Monospace) -->
+    content="AERIS is a prototype demonstration of non-invasive fingertip optical screening for early anemia and nutritional risk estimation." />
+  
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
-    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@300;400;500&display=swap"
+    href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap"
     rel="stylesheet" />
-
-  <link rel="stylesheet" href="/src/style.css" />
 </head>
 
 <body>
-
-  <!-- ATMOSPHERIC OVERLAYS -->
-  <div class="grain" aria-hidden="true"></div>
-  <div class="vignette" aria-hidden="true"></div>
-
-  <!-- MINIMAL UNCLUTTERED NAVIGATION -->
-  <nav id="nav" class="nav">
-    <a href="#film-container" class="nav__logo">
-      <span class="nav__dot"></span>
-      AERIS
-    </a>
-    <div class="nav__links">
-      <a href="/dashboard.html" class="nav__cta">SCREENING CONSOLE →</a>
-    </div>
-  </nav>
-
-  <!-- ============================================================ -->
-  <!-- SCIENTIFIC PRODUCT FILM RUNWAY (1000vh) -->
-  <!-- ============================================================ -->
-  <main id="film-container">
-    
-    <div class="film-pin" id="film-pin">
-      
-      <!-- UNIFIED FILM CANVAS -->
-      <canvas id="film-canvas" aria-hidden="true"></canvas>
-
-      <!-- NARRATIVE OVERLAY LAYERS (MINIMAL, RESTRAINED) -->
-      <div class="film-overlays">
-
-        <!-- SCENE 1: HERO (P: 0.00 - 0.18) -->
-        <div class="overlay-stage stage-hero" id="stage-hero">
-          <div class="hero__header">
-            <span class="hud-mono">AERIS // OPTICAL SCREENING PLATFORM</span>
-          </div>
-
-          <div class="hero__center">
-            <h1 class="hero__title">AERIS</h1>
-            <p class="hero__subtitle">
-              NON-INVASIVE OPTICAL SCREENING<br />
-              FOR EARLY ANEMIA RISK DETECTION
-            </p>
-          </div>
-
-          <div class="hero__footer">
-            <span class="hud-mono">SCROLL TO EXPLORE BEYOND THE SURFACE ↓</span>
-          </div>
-        </div>
-
-        <!-- SCENE 2 & 3: BIOLOGY / RBC FLOW (P: 0.22 - 0.44) -->
-        <div class="overlay-stage stage-biology" id="stage-biology">
-          <div class="hud-center">
-            <span class="hud-mono hud-mono--light">MICROVASCULAR ERYTHROCYTE FLOW</span>
-          </div>
-        </div>
-
-        <!-- SCENE 4: OPTICAL MEASUREMENT (P: 0.48 - 0.64) -->
-        <div class="overlay-stage stage-optical" id="stage-optical">
-          <div class="hud-top-right">
-            <div class="hud-badge"><span class="badge-dot badge-dot--red"></span> 660nm RED ABSORBANCE</div>
-            <div class="hud-badge"><span class="badge-dot badge-dot--gold"></span> 880nm IR ABSORBANCE</div>
-          </div>
-        </div>
-
-        <!-- SCENE 5: SIGNAL (P: 0.66 - 0.82) -->
-        <div class="overlay-stage stage-signal" id="stage-signal">
-          <div class="hud-metrics">
-            <div class="metric-item">
-              <span class="metric-label">SpO₂ RATIO (R)</span>
-              <span class="metric-val">97.2%</span>
-            </div>
-            <div class="metric-item">
-              <span class="metric-label">HRV INTERVAL</span>
-              <span class="metric-val">45 ms</span>
-            </div>
-            <div class="metric-item">
-              <span class="metric-label">PERFUSION INDEX</span>
-              <span class="metric-val">2.1%</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- SCENE 6: CLASSIFICATION & PRODUCT IDENTITY (P: 0.84 - 1.00) -->
-        <div class="overlay-stage stage-classification" id="stage-classification">
-          <div class="classification-box">
-            <span class="hud-mono">AI CLASSIFICATION MODEL // ESTIMATED RISK</span>
-
-            <div class="code-list">
-              <div class="code-item code-item--active">
-                <span class="code-tag tag--green">CODE 0</span>
-                <span class="code-name">HEALTHY</span>
-                <span class="code-sub">Low Risk (94.8% Confidence)</span>
-              </div>
-              <div class="code-item">
-                <span class="code-tag tag--amber">CODE 1</span>
-                <span class="code-name">MILD / MODERATE</span>
-                <span class="code-sub">Early Risk Flagged</span>
-              </div>
-              <div class="code-item">
-                <span class="code-tag tag--red">CODE 2</span>
-                <span class="code-name">SEVERE</span>
-                <span class="code-sub">Clinical Follow-up Indicated</span>
-              </div>
-            </div>
-
-            <div class="cta-wrap">
-              <a href="/dashboard.html" class="btn-cta">
-                ENTER SCREENING CONSOLE →
-              </a>
-            </div>
-          </div>
-        </div>
-
-      </div>
-
-    </div>
-
-  </main>
-
-  <script type="module" src="/src/main.js"></script>
+  <div id="root"></div>
+  <script type="module" src="/src/main.tsx"></script>
 </body>
 
 </html>
